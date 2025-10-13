@@ -1,5 +1,5 @@
 # Lipi-os 
-'''
+```
 Операционная система на python (типа) 
 (ru) Описание: 
 lipi os - моя ос (оболочка) на python. Хочу сделать что-то по типу: 
@@ -42,4 +42,4 @@ lipi-os/
 ├── main.py                
 ├── README.md          #about 
 └──info_and_apdate.txt #apdate and info
-'''
+```
