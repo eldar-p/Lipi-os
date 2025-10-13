@@ -1,0 +1,9 @@
+{
+  "language": "ru",
+  "theme": "dark",
+  "compiler_paths": {
+    "gcc": "/usr/bin/gcc",
+    "rustc": "/home/user/.cargo/bin/rustc"
+  },
+  "app_directory": "/home/user/lipi-os/apps"
+}
