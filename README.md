@@ -1,8 +1,8 @@
 # Lipi-os 
+'''
 Операционная система на python (типа) 
 (ru) Описание: 
-lipi os - моя ос (оболочка) на python 
-хочу сделать что-то по типу: 
+lipi os - моя ос (оболочка) на python. Хочу сделать что-то по типу: 
 ms-dos с win и с функционалом как у ubuntu 
 реалицованно на текущей версии lipi os v8 (минимальный функционал): 
   Программы: 
@@ -42,3 +42,4 @@ lipi-os/
 ├── main.py                
 ├── README.md          #about 
 └──info_and_apdate.txt #apdate and info
+'''
