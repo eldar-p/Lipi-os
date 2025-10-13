@@ -1,4 +1,4 @@
-# Lipi-os (readme.md)
+# Lipi-os 
 Операционная система на python (типа)
 (ru)Описание:
 lipi os - моя ос (оболочка) на python
