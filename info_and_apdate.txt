@@ -11,3 +11,9 @@
     популярные linux дистрибутивы (Ubuntu, Debian, Kali Linux, Arch Linux)
     Android (10-15)
     macOS
+
+Библеотеки которые нужно иметь для запуска lipi os v9 :
+psutil>=5.9.0
+requests>=2.28.0
+PyQt6>=6.4.0                
+kivy>=2.2.0                 
