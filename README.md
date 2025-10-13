@@ -13,3 +13,32 @@ ms-dos с win и с функционалом как у ubuntu
       базовые команды из ubuntu(ls, cd, nano, mkdir ...) 
   Файловый менеджер: 
       как приложение 
+Структура проекта:
+
+lipi-os/
+├── core/                  # Shell Core
+│   ├── shell.py           # CLI command interpreter
+│   ├── gui_engine.py      # Custom GUI engine (based on Tkinter/PyQt/or a custom)
+│   ├── task_manager.py    # Task Manager
+│   ├── app_store.py       # The app store
+│   └── compiler_hub.py    # A module for compiling code
+├── apps/                  # Embedded Applications
+│   ├── file_manager/
+│   │   ├── main.py
+│   │   └── description.json
+│   ├── calculator/
+│   ├── text_editor/
+│   ├── games/
+│   └── ...
+├── settings/
+│   ├── config.json        # Language, theme, path to compilers ...
+│   └── lang/
+│       ├── ru.json
+│       └── en.json
+├── commands/              # Implementing commands (ls, cd ...)
+│   ├── ls.py
+│   ├── cd.py
+│   └── ...
+├── main.py                
+├── README.md          #about 
+└──info_and_apdate.txt #apdate and info
