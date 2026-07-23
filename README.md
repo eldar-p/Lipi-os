@@ -1,45 +1,68 @@
-# Lipi-os 
-```
-Операционная система на python (типа) 
-(ru) Описание: 
-lipi os - моя ос (оболочка) на python. Хочу сделать что-то по типу: 
-ms-dos с win и с функционалом как у ubuntu 
-реалицованно на текущей версии lipi os v8 (минимальный функционал): 
-  Программы: 
-        название_приложения/ 
-           сама_программа.py 
-           описание.json 
-  Команды: 
-      базовые команды из ubuntu(ls, cd, nano, mkdir ...) 
-  Файловый менеджер: 
-      как приложение 
-Структура проекта:
+# Lipi OS
 
+Операционная система-оболочка на Python (CLI + опциональный GUI на Tkinter).
+
+## Запуск
+
+```bash
+cd code
+pip install -r requirements.txt
+python main.py --cli      # консоль
+python main.py --gui      # GUI (нужен tkinter)
+python main.py            # GUI если доступен, иначе CLI
+```
+
+## Что умеет сейчас (v8+)
+
+- Shell: `ls`, `cd`, `pwd`, `mkdir`, `cat`, `echo`, `touch`, `cp`, `mv`, `rm`, `date`, `run`, `apps`, `help`, `exit`
+- Системные команды: `settings`, `tasks`, `store`, `compile`
+- Встроенные приложения: Calculator, File Manager
+- Настройки языка (ru/en) и темы
+- Диспетчер задач (psutil)
+- Магазин приложений (.lipi / zip)
+- Compiler Hub (Python, JS, C/C++, Rust и др.)
+
+## Структура
+
+```
 lipi-os/
-├── core/                  # Shell Core
-│   ├── shell.py           # CLI command interpreter
-│   ├── gui_engine.py      # Custom GUI engine (based on Tkinter/PyQt/or a custom)
-│   ├── task_manager.py    # Task Manager
-│   ├── app_store.py       # The app store
-│   └── compiler_hub.py    # A module for compiling code
-├── apps/                  # Embedded Applications
-│   ├── file_manager/
-│   │   ├── main.py
-│   │   └── description.json
-│   ├── calculator/
-│   ├── text_editor/
-│   ├── games/
-│   └── ...
-├── settings/
-│   ├── config.json        # Language, theme, path to compilers ...
-│   └── lang/
-│       ├── ru.json
-│       └── en.json
-├── commands/              # Implementing commands (ls, cd ...)
-│   ├── ls.py
-│   ├── cd.py
-│   └── ...
-├── main.py                
-├── README.md          #about 
-└──info_and_apdate.txt #apdate and info
+├── code/
+│   ├── main.py
+│   ├── paths.py
+│   ├── i18n.py
+│   ├── requirements.txt
+│   ├── core/
+│   │   ├── shell.py
+│   │   ├── gui_engine.py
+│   │   ├── settings_manager.py
+│   │   ├── task_manager.py
+│   │   ├── app_store.py
+│   │   └── compiler_hub.py
+│   ├── commands/
+│   ├── apps/
+│   └── settings/
+│       ├── config.json
+│       └── lang/
+├── README.md
+├── info_and_apdate.txt
+└── LICENSE
+```
+
+## Формат приложения
+
+```
+apps/my_app/
+  main.py
+  description.json
+```
+
+Пример `description.json`:
+
+```json
+{
+  "name": "My App",
+  "version": "1.0.0",
+  "author": "You",
+  "description": "Short description"
+}
 ```
