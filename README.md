@@ -32,21 +32,28 @@ lipi-os/
 │   ├── i18n.py
 │   ├── requirements.txt
 │   ├── core/
-│   │   ├── shell.py
-│   │   ├── gui_engine.py
-│   │   ├── settings_manager.py
-│   │   ├── task_manager.py
-│   │   ├── app_store.py
-│   │   └── compiler_hub.py
 │   ├── commands/
 │   ├── apps/
 │   └── settings/
-│       ├── config.json
-│       └── lang/
+├── iso/                   # Live ISO builder for real PCs
+│   ├── build.sh
+│   ├── grub.cfg
+│   └── overlay/
+├── dist/                  # output: lipi-os-live.iso (after build)
 ├── README.md
 ├── info_and_apdate.txt
 └── LICENSE
 ```
+
+## Загрузка на реальном ПК (Live ISO)
+
+Чтобы запускать Lipi OS с флешки на настоящем компьютере:
+
+```bash
+sudo ./iso/build.sh
+```
+
+Образ появится в `dist/lipi-os-live.iso`. Подробности записи на USB и загрузки — в [`iso/README.md`](iso/README.md).
 
 ## Формат приложения
 
