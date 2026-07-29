@@ -139,8 +139,8 @@ if ($Backend -eq 'wsl') {
     Write-Output "WSL build path:  $safeRoot" | Write-LiveLog
     Write-Output "Inner script:    $innerWsl" | Write-LiveLog
 
-    # Install inner script onto Linux FS (avoids DrvFs + CRLF + paren path issues while executing)
-    $stageCmd = 'tr -d "\r" < "$1" > /var/tmp/lipi-wsl-build-inner.sh && chmod +x /var/tmp/lipi-wsl-build-inner.sh && echo STAGED_OK'
+    # Install inner script onto Linux FS (strip CRLF only — NOT tr -d "\r", which deletes letter r!)
+    $stageCmd = 'sed "s/\r$//" < "$1" > /var/tmp/lipi-wsl-build-inner.sh && chmod +x /var/tmp/lipi-wsl-build-inner.sh && head -n 6 /var/tmp/lipi-wsl-build-inner.sh && echo STAGED_OK'
     Write-Output "==> Staging inner build script into WSL /var/tmp ..." | Write-LiveLog
     $stageOut = & wsl -u root --exec /bin/bash -c $stageCmd -- $innerWsl 2>&1
     $stageCode = $LASTEXITCODE
@@ -148,6 +148,13 @@ if ($Backend -eq 'wsl') {
     if ($stageCode -ne 0) {
         Write-Output "[X] Failed to stage inner script (exit $stageCode)" | Write-LiveLog
         exit $stageCode
+    }
+    # Sanity: staged file must contain a real 'export' (guards against the old tr bug)
+    $check = & wsl -u root --exec /bin/bash -c 'grep -n "^export " /var/tmp/lipi-wsl-build-inner.sh | head -n 2' 2>&1
+    $check | Write-LiveLog
+    if ("$check" -notmatch 'export ') {
+        Write-Output "[X] Staged script looks corrupted (no export lines). Aborting." | Write-LiveLog
+        exit 1
     }
 
     Write-Output "==> Starting WSL build (live output below) ..." | Write-LiveLog
