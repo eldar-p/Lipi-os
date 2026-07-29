@@ -90,7 +90,12 @@ bootstrap_rootfs() {
 }
 
 configure_rootfs_desktop() {
-  log "Installing desktop packages (full)"
+  log "Installing desktop packages (full + compilers)"
+  # Copy installer into chroot
+  mkdir -p "${CHROOT_DIR}/tmp"
+  cp -f "${ROOT_DIR}/code/scripts/install-compilers.sh" "${CHROOT_DIR}/tmp/install-compilers.sh"
+  chmod +x "${CHROOT_DIR}/tmp/install-compilers.sh"
+
   chroot "${CHROOT_DIR}" /bin/bash -euo pipefail <<'CHROOT'
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
@@ -117,7 +122,13 @@ apt-get install -y -qq \
   iputils-ping \
   net-tools \
   isc-dhcp-client \
-  kmod
+  kmod \
+  curl \
+  wget
+
+# Full compiler toolchains for Compiler Hub / IDE
+bash /tmp/install-compilers.sh --full || true
+rm -f /tmp/install-compilers.sh
 
 sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen || true
 sed -i 's/^# *ru_RU.UTF-8/ru_RU.UTF-8/' /etc/locale.gen || true
@@ -133,7 +144,11 @@ CHROOT
 }
 
 configure_rootfs_server() {
-  log "Installing server packages (minimal, no GUI)"
+  log "Installing server packages (minimal + core compilers)"
+  mkdir -p "${CHROOT_DIR}/tmp"
+  cp -f "${ROOT_DIR}/code/scripts/install-compilers.sh" "${CHROOT_DIR}/tmp/install-compilers.sh"
+  chmod +x "${CHROOT_DIR}/tmp/install-compilers.sh"
+
   chroot "${CHROOT_DIR}" /bin/bash -euo pipefail <<'CHROOT'
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
@@ -163,7 +178,13 @@ apt-get install -y -qq \
   iputils-ping \
   isc-dhcp-client \
   openssh-server \
-  kmod
+  kmod \
+  curl \
+  wget
+
+# Core compilers (smaller than desktop full set)
+bash /tmp/install-compilers.sh --minimal || true
+rm -f /tmp/install-compilers.sh
 
 # Drop GUI / heavy leftovers if somehow present
 apt-get purge -y -qq python3-tk python3-pip x11-common 2>/dev/null || true

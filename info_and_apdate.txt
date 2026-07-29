@@ -5,7 +5,7 @@
     (+ calculator, file_manager)
   - Live ISO desktop + server (`sudo ./iso/build.sh desktop|server|all`)
   - Много shell-команд (files/system/net/dev) + help/history/sysinfo
-  - Compiler Hub: C/C++/Java/Rust/Go/JS/TS/HTML/ASM/… + `langs`
+  - Compiler Hub: C/C++/Java/Rust/Go/JS/TS/HTML/ASM/… + `langs` + `compilers install`
 
 Что хочу добавить дальше:
   - полноценные темы (применение light/dark ко всем окнам)

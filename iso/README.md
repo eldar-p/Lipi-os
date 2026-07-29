@@ -59,6 +59,7 @@ build-iso.bat menu
 - Ядро `linux-image-generic`
 - Python + **tkinter**
 - Все приложения: calculator, file_manager, settings, text_editor, console, ide, browser
+- **Полный набор компиляторов** (`install-compilers.sh --full`): gcc/g++, clang, nasm, JDK, rustc, go, node/npm+tsc, lua, ruby, php, …
 - Автозапуск Lipi CLI (GUI-приложения через `open …`)
 
 ## Server (оптимизированная)
@@ -69,6 +70,7 @@ build-iso.bat menu
 - Меньше ядро: `linux-image-virtual` (если есть в репозитории)
 - Вырезаны doc/man/лишние locale при сборке
 - Остаются: **settings**, **console**, **text_editor** (CLI)
+- **Базовые компиляторы** (`--minimal`): build-essential, nasm, JDK headless, go, node
 - Добавлен **OpenSSH** (root live-login для лаборатории)
 - Hostname: `lipi-server`
 - Лаунчер всегда `--cli`

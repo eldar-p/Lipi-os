@@ -39,6 +39,8 @@ LANG_BY_EXT = {
     ".sh": "bash",
     ".pl": "perl",
     ".zig": "zig",
+    ".f90": "fortran",
+    ".f": "fortran",
 }
 
 

@@ -109,6 +109,12 @@ SUPPORTED_LANGUAGES: dict[str, dict] = {
         "compiler": "perl", "tools": ["perl"],
         "compile_cmd": None, "run_cmd": ["perl", "{source}"],
     },
+    "fortran": {
+        "name": "Fortran", "name_ru": "Fortran", "extension": ".f90", "category": "compiled",
+        "compiler": "gfortran", "tools": ["gfortran"],
+        "compile_cmd": ["gfortran", "{source}", "-O2", "-o", "{output}"],
+        "run_cmd": ["{output}"],
+    },
     "zig": {
         "name": "Zig", "name_ru": "Zig", "extension": ".zig", "category": "compiled",
         "compiler": "zig", "tools": ["zig"],
@@ -119,7 +125,7 @@ SUPPORTED_LANGUAGES: dict[str, dict] = {
 ALIASES = {
     "js": "javascript", "ts": "typescript", "c++": "cpp", "cxx": "cpp",
     "c#": "csharp", "cs": "csharp", "py": "python", "rs": "rust",
-    "assembly": "asm", "nasm": "asm", "kt": "kotlin", "sh": "bash", "shell": "bash",
+    "assembly": "asm", "nasm": "asm", "kt": "kotlin", "sh": "bash", "shell": "bash", "f90": "fortran", "fortran90": "fortran",
 }
 
 
@@ -210,22 +216,42 @@ def _extract_java_classname(code: str, source_file: Path) -> str:
 
 def _run_typescript(source_file: Path, output_file: Path) -> tuple[bool, str]:
     strings = _lang()
+    tsc, node = find_compiler("tsc"), find_compiler("node")
+    if tsc and node:
+        # TypeScript 5+/7: `tsc file.ts` emits sibling .js (outFile removed in TS 7)
+        result = subprocess.run(
+            [tsc, str(source_file)],
+            capture_output=True, text=True, cwd=str(source_file.parent), timeout=60,
+        )
+        js_out = source_file.with_suffix(".js")
+        if result.returncode == 0 and js_out.exists():
+            run = subprocess.run(
+                [node, str(js_out)], capture_output=True, text=True, cwd=str(source_file.parent), timeout=30,
+            )
+            out = (run.stdout or "") + (("\n" + run.stderr) if run.stderr else "")
+            try:
+                js_out.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return run.returncode == 0, out.strip() or f"exit {run.returncode}"
+        tsc_err = (result.stderr or result.stdout or "").strip()
+    else:
+        tsc_err = ""
+
     ts_node = find_compiler("ts-node")
     if ts_node:
-        result = subprocess.run([ts_node, str(source_file)], capture_output=True, text=True, cwd=str(TEMP_DIR), timeout=30)
+        result = subprocess.run(
+            [ts_node, "--transpileOnly", str(source_file)],
+            capture_output=True, text=True, cwd=str(source_file.parent), timeout=30,
+        )
         out = (result.stdout or "") + (("\n" + result.stderr) if result.stderr else "")
-        return result.returncode == 0, out.strip() or f"exit {result.returncode}"
-    tsc, node = find_compiler("tsc"), find_compiler("node")
+        if result.returncode == 0:
+            return True, out.strip()
+        return False, out.strip() or tsc_err or f"exit {result.returncode}"
+
     if not tsc or not node:
-        return False, strings["compiler_not_found"].format("ts-node or tsc+node")
-    js_out = output_file.with_suffix(".js")
-    result = subprocess.run([tsc, str(source_file), "--esModuleInterop", "--outFile", str(js_out)],
-                            capture_output=True, text=True, cwd=str(TEMP_DIR), timeout=60)
-    if result.returncode != 0:
-        return False, strings["error_compile"].format(result.stderr or result.stdout)
-    result = subprocess.run([node, str(js_out)], capture_output=True, text=True, cwd=str(TEMP_DIR), timeout=30)
-    out = (result.stdout or "") + (("\n" + result.stderr) if result.stderr else "")
-    return True, out.strip()
+        return False, strings["compiler_not_found"].format("tsc+node or ts-node")
+    return False, strings["error_compile"].format(tsc_err or "tsc failed")
 
 
 def _run_asm(source_file: Path, output_file: Path) -> tuple[bool, str]:

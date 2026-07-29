@@ -6,7 +6,7 @@ def run(args):
         "system": ["sysinfo", "uname", "hostname", "whoami", "env", "df", "du", "free", "uptime", "ps", "kill", "tasks", "sleep", "clear", "cls"],
         "net": ["ping", "fetch", "download", "netinfo", "serve"],
         "apps": ["apps", "open", "run", "store", "settings"],
-        "dev": ["compile", "langs", "calc", "date"],
+        "dev": ["compile", "langs", "compilers", "calc", "date"],
         "shell": ["help", "history", "echo", "exit", "quit"],
     }
     if args:

@@ -18,6 +18,7 @@ python main.py            # GUI если доступен, иначе CLI
 - `help` / `help files` — каталог команд; `history` — история
 - `langs` / `compile langs` — языки и тулчейны
 - Compiler Hub: Python, JS/TS, HTML/CSS, C/C++, Java, Rust, Go, C#, ASM, Kotlin, Lua, Ruby, PHP, Bash, Perl, Zig…
+- Установка компиляторов: `compilers install` или `sudo ./code/scripts/install-compilers.sh`
 - Приложения: Calculator, File Manager, Settings, Text Editor, Console, IDE, Browser
 - SDK, настройки ru/en, магазин, Live ISO (desktop/server)
 

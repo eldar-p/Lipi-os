@@ -282,16 +282,28 @@ CLI: `store` · GUI: `store --gui` / меню App Store.
 Поддерживаемые языки (если установлен тулчейн на хосте):
 
 Python, JavaScript, TypeScript, HTML, CSS, C, C++, Java, Rust, Go, C#, Assembly (NASM),
-Kotlin, Lua, Ruby, PHP, Bash, Perl, Zig.
+Kotlin, Lua, Ruby, PHP, Bash, Perl, Fortran, Zig.
 
 ```bash
-langs                 # статус тулчейнов
+langs                     # статус тулчейнов
+compilers                 # статус + установка
+compilers install         # sudo: gcc/g++/java/rust/go/node/…
+compilers install --minimal
 compile langs
 compile run python print(1+1)
 compile run c '#include <stdio.h>\nint main(){puts("hi");}'
 compile file java Main.java
 compile --gui
 ```
+
+Скрипт на хосте:
+
+```bash
+sudo ./code/scripts/install-compilers.sh
+sudo ./code/scripts/install-compilers.sh --minimal
+```
+
+Desktop ISO ставит полный набор, Server ISO — minimal.
 
 API:
 
