@@ -96,10 +96,12 @@ echo [2/3] apt: зависимости скачаются сами при нео
 echo [3/3] сборка %TARGET% ...
 echo.
 
-rem Run as root inside default WSL distro — fully non-interactive
-wsl -u root -- bash -lc "export DEBIAN_FRONTEND=noninteractive; cd '!WSL_ROOT!' && chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%" 1>"%LOG%" 2>&1
+rem Live output + log (PowerShell Tee-Object)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Continue';" ^
+  "wsl -u root -- bash -lc \"export DEBIAN_FRONTEND=noninteractive; cd '!WSL_ROOT!' && chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%\" 2>&1 |" ^
+  "Tee-Object -FilePath '%LOG%'; exit $LASTEXITCODE"
 set "ERR=!ERRORLEVEL!"
-type "%LOG%"
 if not "!ERR!"=="0" (
   echo.
   echo [!] WSL-сборка не удалась ^(код !ERR!^). Пробую Docker...
@@ -154,16 +156,15 @@ if errorlevel 1 (
   goto :fail
 )
 
-docker run --rm --privileged ^
-  -e DEBIAN_FRONTEND=noninteractive ^
-  -e NEEDRESTART_MODE=a ^
-  -v "%REPO_ROOT%:/lipi" ^
-  -w /lipi ^
-  ubuntu:24.04 ^
-  bash -lc "chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%" 1>"%LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Continue';" ^
+  "docker run --rm --privileged " ^
+  "-e DEBIAN_FRONTEND=noninteractive -e NEEDRESTART_MODE=a " ^
+  "-v '%REPO_ROOT%:/lipi' -w /lipi ubuntu:24.04 " ^
+  "bash -lc 'chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%' 2>&1 |" ^
+  "Tee-Object -FilePath '%LOG%'; exit $LASTEXITCODE"
 
 set "ERR=!ERRORLEVEL!"
-type "%LOG%"
 if not "!ERR!"=="0" (
   echo.
   echo [X] Docker-сборка упала ^(код !ERR!^). См. dist\build-windows.log
