@@ -1,0 +1,4 @@
+Lipi OS \n \l
+
+Linux-based · own userspace · Live session
+Skip Lipi shell:  LIPI_SKIP_AUTOSTART=1 bash

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Launcher for Lipi OS Live / installed media
+set -e
+export LIPI_HOME="${LIPI_HOME:-/opt/lipi-os}"
+cd "$LIPI_HOME"
+exec python3 "$LIPI_HOME/main.py" "$@"

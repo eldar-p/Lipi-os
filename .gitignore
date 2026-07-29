@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+temp/
+*.lipi
+.DS_Store
+.idea/
+.vscode/
+iso/.work/
+dist/
+*.iso
+*.iso.sha256

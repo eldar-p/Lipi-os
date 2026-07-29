@@ -1,352 +1,452 @@
-# app_store.py
-import os
-import sys
+"""Lipi OS app store (install/uninstall local and online packages)."""
+from __future__ import annotations
+
 import json
-import zipfile
+import re
 import shutil
-import requests
+import sys
+import tempfile
+import zipfile
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urlparse
 
-# Пути
-APP_DIR = Path("apps")
-STORE_CONFIG = Path("settings/appstore.json")
-LANG_DIR = Path("settings/lang")
+from i18n import get_language_strings
+from paths import APPS_DIR, TEMP_DIR, ensure_runtime_dirs
 
-# Создаём папки при первом запуске
-APP_DIR.mkdir(exist_ok=True)
-STORE_CONFIG.parent.mkdir(exist_ok=True)
+try:
+    import requests
+except ImportError:  # pragma: no cover
+    requests = None
 
-# ======================
-# ЛОКАЛИЗАЦИЯ
-# ======================
+ensure_runtime_dirs()
 
-def load_language():
-    config_path = Path("settings/config.json")
-    lang = "en"
-    if config_path.exists():
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                lang = cfg.get("language", "en")
-        except:
-            pass
-
-    lang_file = LANG_DIR / f"{lang}.json"
-    fallback = {
-        "store_title": "Lipi App Store",
-        "installed": "Installed Apps",
-        "online": "Online Catalog",
-        "install": "Install",
-        "uninstall": "Uninstall",
-        "name": "Name",
-        "version": "Version",
-        "author": "Author",
-        "description": "Description",
-        "back": "Back",
-        "exit": "Exit",
-        "enter_url": "Enter .lipi URL or local path:",
-        "invalid_package": "Invalid package: missing description.json or main.py",
-        "already_installed": "App already installed: {}",
-        "installed_success": "Successfully installed: {}",
-        "uninstalled": "Uninstalled: {}",
-        "not_found": "App not found",
-        "loading": "Loading...",
-        "online_repo": "https://raw.githubusercontent.com/lipi-os/apps/main/catalog.json"
+_BUILTIN_APPS = frozenset(
+    {
+        "browser",
+        "calculator",
+        "console",
+        "file_manager",
+        "ide",
+        "settings",
+        "text_editor",
     }
+)
+_SAFE_APP_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
-    if lang_file.exists():
-        try:
-            with open(lang_file, "r", encoding="utf-8") as f:
-                user_lang = json.load(f)
-                for k in fallback:
-                    if k not in user_lang:
-                        user_lang[k] = fallback[k]
-                return user_lang
-        except:
-            pass
-    return fallback
 
-LANG = load_language()
+def _lang() -> dict:
+    return get_language_strings()
 
-# ======================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# ======================
 
-def get_installed_apps():
-    """Возвращает список установленных приложений"""
+def _apps_dir() -> Path:
+    """Resolve configured apps directory, falling back to default."""
+    from paths import BASE_DIR
+
+    try:
+        from core.settings_manager import load_config
+
+        raw = Path(load_config().get("app_directory", APPS_DIR))
+        configured = raw if raw.is_absolute() else (BASE_DIR / raw)
+        configured = configured.resolve()
+        configured.mkdir(parents=True, exist_ok=True)
+        return configured
+    except Exception:
+        APPS_DIR.mkdir(parents=True, exist_ok=True)
+        return APPS_DIR
+
+
+def _is_within_directory(root: Path, target: Path) -> bool:
+    try:
+        target.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _safe_extract_zip(zip_path: Path, dest: Path) -> None:
+    """Extract zip without Zip Slip (members must stay under dest)."""
+    dest = dest.resolve()
+    dest.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for info in zf.infolist():
+            name = info.filename.replace("\\", "/")
+            if name.startswith("/") or ".." in Path(name).parts:
+                raise ValueError(f"Unsafe path in archive: {info.filename}")
+            target = (dest / name).resolve()
+            if not _is_within_directory(dest, target) and target != dest:
+                raise ValueError(f"Zip Slip blocked: {info.filename}")
+            if info.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(info, "r") as src, open(target, "wb") as out:
+                    shutil.copyfileobj(src, out)
+
+
+def _normalize_app_id(raw: str, fallback: str = "app") -> str:
+    cleaned = "".join(c if c.isalnum() else "_" for c in str(raw)).lower().strip("_")
+    if not cleaned:
+        cleaned = fallback.lower()
+    if not _SAFE_APP_ID.match(cleaned):
+        cleaned = re.sub(r"[^a-z0-9_-]", "", cleaned)[:64] or "app"
+    return cleaned
+
+
+def get_installed_apps() -> list[dict]:
     apps = []
-    for app_folder in APP_DIR.iterdir():
-        if app_folder.is_dir():
-            desc_file = app_folder / "description.json"
-            if desc_file.exists():
-                try:
-                    with open(desc_file, "r", encoding="utf-8") as f:
-                        meta = json.load(f)
-                        meta["id"] = app_folder.name
-                        apps.append(meta)
-                except:
-                    continue
+    root = _apps_dir()
+    if not root.exists():
+        return apps
+    for app_folder in root.iterdir():
+        if not app_folder.is_dir():
+            continue
+        desc_file = app_folder / "description.json"
+        if not desc_file.exists():
+            continue
+        try:
+            with open(desc_file, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            if isinstance(meta, dict):
+                meta = dict(meta)
+                meta["id"] = app_folder.name
+                apps.append(meta)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            continue
     return apps
 
-def install_from_path(path: Path):
-    """Устанавливает приложение из .lipi (zip) или папки"""
+
+def install_from_path(path: Path) -> tuple[bool, str]:
+    lang = _lang()
     app_name = None
     temp_dir = None
 
     try:
-        if path.suffix == ".lipi" or path.suffix == ".zip":
-            # Распаковка архива
-            temp_dir = Path("temp_install")
-            temp_dir.mkdir(exist_ok=True)
-            with zipfile.ZipFile(path, 'r') as zip_ref:
-                zip_ref.extractall(temp_dir)
+        path = Path(path)
+        if path.suffix.lower() in (".lipi", ".zip"):
+            temp_dir = Path(tempfile.mkdtemp(prefix="lipi_install_", dir=str(TEMP_DIR)))
+            _safe_extract_zip(path, temp_dir)
             source = temp_dir
+            children = [p for p in temp_dir.iterdir() if not p.name.startswith(".")]
+            if len(children) == 1 and children[0].is_dir():
+                if (children[0] / "description.json").exists():
+                    source = children[0]
         elif path.is_dir():
             source = path
         else:
-            return False, LANG["invalid_package"]
+            return False, lang["invalid_package"]
 
-        # Проверка содержимого
         desc_file = source / "description.json"
         main_file = source / "main.py"
         if not (desc_file.exists() and main_file.exists()):
-            return False, LANG["invalid_package"]
+            return False, lang["invalid_package"]
 
         with open(desc_file, "r", encoding="utf-8") as f:
             meta = json.load(f)
-            app_name = meta.get("name", meta.get("name_en", "Unknown"))
+        app_name = meta.get("name") or meta.get("name_en") or path.stem
+        app_id = _normalize_app_id(str(app_name), fallback=path.stem)
 
-        app_id = "".join(c if c.isalnum() else "_" for c in app_name).lower()
-        target = APP_DIR / app_id
-
+        apps_root = _apps_dir().resolve()
+        target = (apps_root / app_id).resolve()
+        if not _is_within_directory(apps_root, target):
+            return False, "Invalid app id"
         if target.exists():
-            return False, LANG["already_installed"].format(app_name)
+            return False, lang["already_installed"].format(app_name)
 
         shutil.copytree(source, target)
-        return True, LANG["installed_success"].format(app_name)
-
+        return True, lang["installed_success"].format(app_name)
     except Exception as e:
         return False, str(e)
     finally:
         if temp_dir and temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-def uninstall_app(app_id: str):
-    """Удаляет приложение по ID (имени папки)"""
-    app_path = APP_DIR / app_id
-    if app_path.exists():
+
+def install_from_url_or_path(spec: str) -> tuple[bool, str]:
+    """Install from local path or http(s) URL."""
+    lang = _lang()
+    text = (spec or "").strip()
+    if not text:
+        return False, lang["invalid_package"]
+
+    parsed = urlparse(text)
+    if parsed.scheme in ("http", "https"):
+        if requests is None:
+            return False, "requests is not installed"
+        try:
+            name = Path(parsed.path).name or "download.lipi"
+            local_path = TEMP_DIR / name
+            with requests.get(text, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(local_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+            try:
+                return install_from_path(local_path)
+            finally:
+                local_path.unlink(missing_ok=True)
+        except Exception as e:
+            return False, str(e)
+
+    return install_from_path(Path(text))
+
+
+def uninstall_app(app_id: str) -> bool:
+    if not app_id or not _SAFE_APP_ID.match(app_id):
+        return False
+    if app_id in _BUILTIN_APPS:
+        return False
+
+    apps_root = _apps_dir().resolve()
+    app_path = (apps_root / app_id).resolve()
+    if not _is_within_directory(apps_root, app_path):
+        return False
+    if app_path.exists() and app_path.is_dir():
         shutil.rmtree(app_path, ignore_errors=True)
-        return True
+        return not app_path.exists()
     return False
 
-def get_online_catalog():
-    """Загружает онлайн-каталог из GitHub"""
+
+def get_online_catalog() -> dict:
+    lang = _lang()
+    if requests is None:
+        return {"apps": [], "error": "requests is not installed"}
     try:
-        repo_url = LANG.get("online_repo", "https://raw.githubusercontent.com/lipi-os/apps/main/catalog.json")
+        # Prefer settings/config over language strings for the catalog URL
+        repo_url = None
+        try:
+            from core.settings_manager import load_config
+
+            repo_url = load_config().get("app_store_catalog_url")
+        except Exception:
+            repo_url = None
+        if not repo_url:
+            repo_url = lang.get(
+                "online_repo",
+                "https://raw.githubusercontent.com/lipi-os/apps/main/catalog.json",
+            )
         response = requests.get(repo_url, timeout=10)
         if response.status_code == 200:
-            return response.json()
-        else:
-            return {"apps": []}
-    except:
-        return {"apps": []}
+            data = response.json()
+            return data if isinstance(data, dict) else {"apps": []}
+        return {"apps": [], "error": f"HTTP {response.status_code}"}
+    except Exception as e:
+        return {"apps": [], "error": str(e)}
 
-# ======================
-# CLI-РЕЖИМ
-# ======================
 
-def cli_app_store():
+def cli_app_store() -> None:
+    lang = _lang()
     while True:
-        print(f"\n=== {LANG['store_title']} ===")
-        print("1. " + LANG["installed"])
-        print("2. " + LANG["online"])
-        print("3. " + LANG["install"] + " (.lipi)")
-        print("0. " + LANG["exit"])
+        print(f"\n=== {lang['store_title']} ===")
+        print("1. " + lang["installed"])
+        print("2. " + lang["online"])
+        print("3. " + lang["install"] + " (.lipi / URL)")
+        print("0. " + lang["exit"])
         choice = input("> ").strip()
 
         if choice == "0":
             break
-        elif choice == "1":
+        if choice == "1":
             show_installed_cli()
         elif choice == "2":
             show_online_cli()
         elif choice == "3":
-            path = input(LANG["enter_url"] + " ").strip()
+            path = input(lang["enter_url"] + " ").strip()
             if path:
-                success, msg = install_from_path(Path(path))
+                _, msg = install_from_url_or_path(path)
                 print(msg)
 
-def show_installed_cli():
+
+def show_installed_cli() -> None:
+    lang = _lang()
     apps = get_installed_apps()
     if not apps:
-        print(LANG["not_found"])
+        print(lang["not_found"])
         return
-    print(f"\n{LANG['installed']}:")
+    print(f"\n{lang['installed']}:")
     for app in apps:
-        name = app.get("name", app.get("name_en", "Unknown"))
+        name = app.get("name") or app.get("name_en") or "Unknown"
         ver = app.get("version", "?.?")
-        print(f"- {name} (v{ver}) [{app['id']}]")
-        print(f"  {LANG['uninstall']}: uninstall {app['id']}")
+        builtin = " [builtin]" if app["id"] in _BUILTIN_APPS else ""
+        print(f"- {name} (v{ver}) [{app['id']}]{builtin}")
+        if app["id"] not in _BUILTIN_APPS:
+            print(f"  {lang['uninstall']}: uninstall {app['id']}")
 
     cmd = input("\n> ").strip()
     if cmd.startswith("uninstall "):
-        app_id = cmd.split(" ", 1)[1]
-        if uninstall_app(app_id):
-            print(LANG["uninstalled"].format(app_id))
+        app_id = cmd.split(" ", 1)[1].strip()
+        if app_id in _BUILTIN_APPS:
+            print("Cannot uninstall built-in app")
+        elif uninstall_app(app_id):
+            print(lang["uninstalled"].format(app_id))
         else:
-            print(LANG["not_found"])
+            print(lang["not_found"])
 
-def show_online_cli():
-    print(LANG["loading"])
+
+def show_online_cli() -> None:
+    lang = _lang()
+    print(lang["loading"])
     catalog = get_online_catalog()
     apps = catalog.get("apps", [])
     if not apps:
-        print(LANG["not_found"])
+        err = catalog.get("error")
+        print(f"{lang['not_found']}" + (f" ({err})" if err else ""))
         return
 
-    print(f"\n{LANG['online']}:")
+    print(f"\n{lang['online']}:")
     for i, app in enumerate(apps):
-        name = app.get("name", app.get("name_en", "Unknown"))
-        print(f"{i+1}. {name} (v{app.get('version', '?')}) - {app.get('author', '')}")
+        name = app.get("name") or app.get("name_en") or "Unknown"
+        print(f"{i + 1}. {name} (v{app.get('version', '?')}) - {app.get('author', '')}")
 
     try:
-        choice = input("\n" + LANG["install"] + " # (0=cancel): ").strip()
+        choice = input("\n" + lang["install"] + " # (0=cancel): ").strip()
         if choice.isdigit() and 1 <= int(choice) <= len(apps):
-            app = apps[int(choice)-1]
+            app = apps[int(choice) - 1]
             url = app.get("download_url")
             if url:
-                # Скачиваем .lipi
-                local_path = Path(f"temp_{Path(url).name}")
-                with requests.get(url, stream=True) as r:
-                    r.raise_for_status()
-                    with open(local_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                success, msg = install_from_path(local_path)
+                ok, msg = install_from_url_or_path(url)
                 print(msg)
-                local_path.unlink(missing_ok=True)
+            else:
+                print(lang["not_found"])
     except Exception as e:
         print("Error:", e)
 
-# ======================
-# GUI-РЕЖИМ (опционально)
-# ======================
 
-def create_gui_app_store():
+def create_gui_app_store(master=None) -> None:
     try:
-        from gui_engine import LipiWindow
+        from core.gui_engine import LipiWindow
     except ImportError:
         print("GUI not available. Using CLI.")
         return cli_app_store()
 
-    win = LipiWindow(LANG["store_title"], 800, 600)
-    from tkinter import Listbox, Scrollbar, Button, END, Frame, Label
+    lang = _lang()
+    win = LipiWindow(lang["store_title"], 800, 600, master=master)
+    from tkinter import END, Button, Frame, Label, Listbox, Scrollbar, messagebox
 
-    def show_installed():
+    content_frame = Frame(win.content, bg="white")
+    content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+    def clear_content() -> None:
         for widget in content_frame.winfo_children():
             widget.destroy()
 
-        Label(content_frame, text=LANG["installed"], bg="white", font=("Arial", 12, "bold")).pack(anchor="w", pady=5)
+    def show_installed() -> None:
+        clear_content()
+        Label(
+            content_frame, text=lang["installed"], bg="white", font=("Arial", 12, "bold")
+        ).pack(anchor="w", pady=5)
         listbox = Listbox(content_frame, width=100, height=20)
         scrollbar = Scrollbar(content_frame, orient="vertical", command=listbox.yview)
         listbox.config(yscrollcommand=scrollbar.set)
 
         apps = get_installed_apps()
         for app in apps:
-            name = app.get("name", app.get("name_en", "Unknown"))
-            listbox.insert(END, f"{name} (v{app.get('version', '?')}) [{app['id']}]")
+            name = app.get("name") or app.get("name_en") or "Unknown"
+            tag = " builtin" if app["id"] in _BUILTIN_APPS else ""
+            listbox.insert(END, f"{name} (v{app.get('version', '?')}) [{app['id']}]{tag}")
 
         listbox.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        def on_uninstall():
+        def on_uninstall() -> None:
             sel = listbox.curselection()
-            if sel:
-                line = listbox.get(sel[0])
-                # Извлекаем ID из скобок в конце: [app_id]
-                if "[" in line and "]" in line:
-                    app_id = line.split("[")[-1].rstrip("]")
-                    if uninstall_app(app_id):
-                        show_installed()
+            if not sel:
+                return
+            line = listbox.get(sel[0])
+            if "[" in line and "]" in line:
+                app_id = line.split("[")[-1].split("]")[0].strip()
+                if app_id in _BUILTIN_APPS:
+                    messagebox.showwarning(lang["store_title"], "Cannot uninstall built-in app")
+                    return
+                if not messagebox.askyesno(lang["store_title"], f"Uninstall {app_id}?"):
+                    return
+                if uninstall_app(app_id):
+                    show_installed()
+                else:
+                    messagebox.showerror(lang["store_title"], lang["not_found"])
 
-        Button(content_frame, text=LANG["uninstall"], command=on_uninstall).pack(pady=5)
-        Button(content_frame, text=LANG["back"], command=main_menu).pack(pady=5)
+        Button(content_frame, text=lang["uninstall"], command=on_uninstall).pack(pady=5)
+        Button(content_frame, text=lang["back"], command=main_menu).pack(pady=5)
 
-    def show_online():
-        for widget in content_frame.winfo_children():
-            widget.destroy()
-
-        Label(content_frame, text=LANG["loading"], bg="white").pack()
+    def show_online() -> None:
+        clear_content()
+        Label(content_frame, text=lang["loading"], bg="white").pack()
         win.root.update()
 
         catalog = get_online_catalog()
         apps = catalog.get("apps", [])
-
-        for widget in content_frame.winfo_children():
-            widget.destroy()
+        clear_content()
 
         if not apps:
-            Label(content_frame, text=LANG["not_found"], bg="white").pack()
+            msg = lang["not_found"]
+            if catalog.get("error"):
+                msg = f"{msg}\n{catalog['error']}"
+            Label(content_frame, text=msg, bg="white").pack()
         else:
-            Label(content_frame, text=LANG["online"], bg="white", font=("Arial", 12, "bold")).pack(anchor="w", pady=5)
+            Label(
+                content_frame, text=lang["online"], bg="white", font=("Arial", 12, "bold")
+            ).pack(anchor="w", pady=5)
             listbox = Listbox(content_frame, width=100, height=20)
             for app in apps:
-                name = app.get("name", app.get("name_en", "Unknown"))
+                name = app.get("name") or app.get("name_en") or "Unknown"
                 listbox.insert(END, f"{name} (v{app.get('version', '?')})")
             listbox.pack(fill="both", expand=True)
 
-            def on_install():
+            def on_install() -> None:
                 sel = listbox.curselection()
-                if sel and 0 <= sel[0] < len(apps):
-                    app = apps[sel[0]]
-                    url = app.get("download_url")
-                    if url:
-                        try:
-                            local_path = Path(f"temp_{Path(url).name}")
-                            with requests.get(url, stream=True) as r:
-                                r.raise_for_status()
-                                with open(local_path, 'wb') as f:
-                                    for chunk in r.iter_content(chunk_size=8192):
-                                        f.write(chunk)
-                            success, msg = install_from_path(local_path)
-                            print(msg)  # или показать в GUI
-                            local_path.unlink(missing_ok=True)
-                            show_online()
-                        except Exception as e:
-                            print("Install error:", e)
+                if not sel:
+                    return
+                idx = sel[0]
+                if not (0 <= idx < len(apps)):
+                    return
+                app = apps[idx]
+                url = app.get("download_url")
+                if not url:
+                    return
+                try:
+                    ok, msg = install_from_url_or_path(url)
+                    messagebox.showinfo(lang["store_title"], msg)
+                    if ok:
+                        show_online()
+                except Exception as e:
+                    messagebox.showerror(lang["store_title"], str(e))
 
-            Button(content_frame, text=LANG["install"], command=on_install).pack(pady=5)
+            Button(content_frame, text=lang["install"], command=on_install).pack(pady=5)
 
-        Button(content_frame, text=LANG["back"], command=main_menu).pack(pady=5)
+        Button(content_frame, text=lang["back"], command=main_menu).pack(pady=5)
 
-    def install_manual():
+    def install_manual() -> None:
         from tkinter import filedialog
+
         path = filedialog.askopenfilename(
-            title=LANG["install"],
-            filetypes=[("Lipi App", "*.lipi"), ("ZIP files", "*.zip"), ("All files", "*.*")]
+            title=lang["install"],
+            filetypes=[
+                ("Lipi App", "*.lipi"),
+                ("ZIP files", "*.zip"),
+                ("All files", "*.*"),
+            ],
         )
         if path:
-            success, msg = install_from_path(Path(path))
-            print(msg)  # или messagebox
+            _, msg = install_from_path(Path(path))
+            messagebox.showinfo(lang["store_title"], msg)
 
-    def main_menu():
-        for widget in content_frame.winfo_children():
-            widget.destroy()
-        Button(content_frame, text=LANG["installed"], command=show_installed, width=30).pack(pady=5)
-        Button(content_frame, text=LANG["online"], command=show_online, width=30).pack(pady=5)
-        Button(content_frame, text=LANG["install"] + " (.lipi)", command=install_manual, width=30).pack(pady=5)
-        Button(content_frame, text=LANG["exit"], command=win.root.destroy, width=30).pack(pady=5)
-
-    content_frame = Frame(win.content, bg="white")
-    content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+    def main_menu() -> None:
+        clear_content()
+        Button(content_frame, text=lang["installed"], command=show_installed, width=30).pack(
+            pady=5
+        )
+        Button(content_frame, text=lang["online"], command=show_online, width=30).pack(pady=5)
+        Button(
+            content_frame,
+            text=lang["install"] + " (.lipi)",
+            command=install_manual,
+            width=30,
+        ).pack(pady=5)
+        Button(content_frame, text=lang["exit"], command=win.close, width=30).pack(pady=5)
 
     main_menu()
     win.mainloop()
 
-# ======================
-# ТОЧКА ВХОДА
-# ======================
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--gui":

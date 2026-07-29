@@ -1,17 +1,33 @@
-# commands/apps.py
-from pathlib import Path
+"""List installed Lipi apps (with metadata)."""
+from __future__ import annotations
+
 
 def run(args):
-    apps_dir = Path("apps")
-    if not apps_dir.exists():
-        return "No apps installed. Directory 'apps/' not found."
-    
-    app_folders = [f.name for f in apps_dir.iterdir() if f.is_dir()]
-    
-    if not app_folders:
+    from sdk import list_apps
+
+    apps = list_apps()
+    if not apps:
         return "No applications installed."
-    
-    output = "Installed applications:\n"
-    for app in sorted(app_folders):
-        output += f"  - {app}\n"
-    return output.strip()
+
+    if args and args[0] in ("-v", "--verbose", "info"):
+        lines = ["Installed applications:"]
+        for app in apps:
+            meta = app.get("meta") or {}
+            lines.append(f"  [{app['id']}] {app['name']}")
+            if meta.get("version"):
+                lines.append(f"      version: {meta['version']}")
+            if meta.get("author"):
+                lines.append(f"      author:  {meta['author']}")
+            if meta.get("description"):
+                lines.append(f"      desc:    {meta['description']}")
+            lines.append(f"      path:    {app['path']}")
+            lines.append(f"      launch:  open {app['id']}")
+        return "\n".join(lines)
+
+    lines = ["Installed applications (open <id>):"]
+    for app in apps:
+        meta = app.get("meta") or {}
+        desc = meta.get("description", "")
+        suffix = f" — {desc}" if desc else ""
+        lines.append(f"  {app['id']:16} {app['name']}{suffix}")
+    return "\n".join(lines)

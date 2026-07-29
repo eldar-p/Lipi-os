@@ -1,0 +1,10 @@
+#!/bin/sh
+# Regenerate SSH host keys on first Live boot (do not ship private keys in the ISO).
+set -e
+if [ -d /etc/ssh ] && command -v ssh-keygen >/dev/null 2>&1; then
+  if [ ! -f /etc/ssh/.lipi_hostkeys_ready ]; then
+    rm -f /etc/ssh/ssh_host_* 2>/dev/null || true
+    ssh-keygen -A
+    touch /etc/ssh/.lipi_hostkeys_ready
+  fi
+fi

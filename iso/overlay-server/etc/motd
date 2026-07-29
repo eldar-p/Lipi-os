@@ -1,0 +1,7 @@
+
+ Lipi OS 8+ Server  —  minimal CLI on Linux
+ SSH: root / lipi  (change after boot)  ·  no GUI
+ Apps: settings, console, text_editor
+
+ Type 'exit' inside Lipi for system shell.  Restart: lipi-os
+

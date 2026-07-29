@@ -1,4 +1,6 @@
+"""Move/rename files or directories."""
 import shutil
+
 
 def run(args):
     if len(args) < 2:
