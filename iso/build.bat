@@ -1,17 +1,17 @@
-@echo off
+﻿@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
-title Lipi OS — сборка ISO
+title Lipi OS ISO build
 
 rem =============================================================================
-rem  Lipi OS ISO — сборка в 1–2 клика (Windows)
+rem  Lipi OS ISO - one/two-click build on Windows
 rem
-rem  Двойной клик  →  через 5 сек соберёт ОБЕ редакции (можно отменить)
-rem  build.bat desktop | server | all | clean
+rem  Double-click  -> after 5 sec builds BOTH editions (Ctrl+C to cancel)
+rem  build.bat desktop | server | all | clean | menu
 rem
-rem  Порядок бэкендов:
-rem    1) WSL как root  (без пароля sudo) + авто-apt
-rem    2) Docker Desktop (всё внутри контейнера)
+rem  Backends (in order):
+rem    1) WSL as root (no sudo password) + auto apt
+rem    2) Docker Desktop (everything inside the container)
 rem =============================================================================
 
 cd /d "%~dp0.."
@@ -24,17 +24,17 @@ if not exist "%REPO_ROOT%\dist" mkdir "%REPO_ROOT%\dist" >nul 2>&1
 
 echo.
 echo  ============================================================
-echo   Lipi OS  ^|  авто-сборка Live ISO под Windows
+echo   Lipi OS  ^|  Live ISO auto-build for Windows
 echo  ============================================================
-echo   Папка: %REPO_ROOT%
+echo   Folder: %REPO_ROOT%
 echo.
 
 if not exist "%REPO_ROOT%\iso\build.sh" (
-  echo [X] Не найден iso\build.sh — запускайте из репозитория Lipi-os.
+  echo [X] Missing iso\build.sh - run from the Lipi-os repository.
   goto :fail
 )
 if not exist "%REPO_ROOT%\iso\auto-build.sh" (
-  echo [X] Не найден iso\auto-build.sh
+  echo [X] Missing iso\auto-build.sh
   goto :fail
 )
 
@@ -42,14 +42,14 @@ if "%TARGET%"=="" goto :autostart
 goto :normalize
 
 :autostart
-echo   Двойной клик: соберём DESKTOP + SERVER автоматически.
-echo   Чтобы выбрать вручную — закройте окно и запустите:
+echo   Double-click: building DESKTOP + SERVER automatically.
+echo   Manual target example:
 echo     build-iso.bat desktop
 echo.
-echo   Старт через 5 секунд...  ^(Ctrl+C = отмена^)
+echo   Starting in 5 seconds...  ^(Ctrl+C = cancel^)
 timeout /t 5 /nobreak >nul 2>&1
 if errorlevel 1 (
-  echo Отменено.
+  echo Cancelled.
   goto :fail
 )
 set "TARGET=all"
@@ -65,8 +65,8 @@ if /i "%TARGET%"=="srv" set "TARGET=server"
 if /i "%TARGET%"=="minimal" set "TARGET=server"
 if /i "%TARGET%"=="both" set "TARGET=all"
 
-echo   Цель: %TARGET%
-echo   Лог:  dist\build-windows.log
+echo   Target: %TARGET%
+echo   Log:    dist\build-windows.log
 echo.
 
 rem Prefer WSL root (no sudo password)
@@ -75,14 +75,14 @@ if errorlevel 1 goto :try_docker
 
 wsl -e true >nul 2>&1
 if errorlevel 1 (
-  echo [!] WSL есть, но дистрибутив не готов.
-  echo     Пробую установить Ubuntu...
+  echo [!] WSL found, but distro is not ready.
+  echo     Trying to install Ubuntu...
   call :offer_wsl_install
   wsl -e true >nul 2>&1
   if errorlevel 1 goto :try_docker
 )
 
-echo [1/3] WSL найден — сборка от root ^(без пароля^)...
+echo [1/3] WSL found - building as root ^(no sudo password^)...
 for /f "delims=" %%i in ('wsl -e wslpath -a "%REPO_ROOT%" 2^>nul') do set "WSL_ROOT=%%i"
 if not defined WSL_ROOT (
   set "WSL_ROOT=%REPO_ROOT%"
@@ -91,33 +91,30 @@ if not defined WSL_ROOT (
   set "WSL_ROOT=/mnt/!WSL_ROOT!"
   call :tolower_drive
 )
-echo       путь: !WSL_ROOT!
-echo [2/3] apt: зависимости скачаются сами при необходимости
-echo [3/3] сборка %TARGET% ...
+echo       path: !WSL_ROOT!
+echo [2/3] apt: dependencies will be installed automatically if needed
+echo [3/3] building %TARGET% ...
 echo.
 
-rem Live output + log (PowerShell Tee-Object)
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ErrorActionPreference='Continue';" ^
-  "wsl -u root -- bash -lc \"export DEBIAN_FRONTEND=noninteractive; cd '!WSL_ROOT!' && chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%\" 2>&1 |" ^
-  "Tee-Object -FilePath '%LOG%'; exit $LASTEXITCODE"
+rem Live output + log via PowerShell Tee-Object
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Continue'; wsl -u root -- bash -lc \"export DEBIAN_FRONTEND=noninteractive; cd '!WSL_ROOT!' && chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%\" 2>&1 | Tee-Object -FilePath '%LOG%'; exit $LASTEXITCODE"
 set "ERR=!ERRORLEVEL!"
 if not "!ERR!"=="0" (
   echo.
-  echo [!] WSL-сборка не удалась ^(код !ERR!^). Пробую Docker...
+  echo [!] WSL build failed ^(code !ERR!^). Trying Docker...
   goto :try_docker
 )
 goto :success
 
 :menu
-echo  1^) desktop   2^) server   3^) all   4^) clean   0^) выход
-set /p "CHOICE=Номер: "
+echo  1^) desktop   2^) server   3^) all   4^) clean   0^) exit
+set /p "CHOICE=Number: "
 if "%CHOICE%"=="1" set "TARGET=desktop" & goto :normalize
 if "%CHOICE%"=="2" set "TARGET=server" & goto :normalize
 if "%CHOICE%"=="3" set "TARGET=all" & goto :normalize
 if "%CHOICE%"=="4" set "TARGET=clean" & goto :normalize
 if "%CHOICE%"=="0" exit /b 0
-echo Неверный выбор.
+echo Invalid choice.
 goto :fail
 
 :try_docker
@@ -126,9 +123,9 @@ if errorlevel 1 goto :no_backend
 
 docker info >nul 2>&1
 if errorlevel 1 (
-  echo [!] Docker установлен, но не запущен.
-  echo     Запустите Docker Desktop и подождите зелёный индикатор…
-  echo     Жду до 90 секунд…
+  echo [!] Docker is installed but not running.
+  echo     Start Docker Desktop and wait for the green indicator.
+  echo     Waiting up to 90 seconds...
   set /a _n=0
   :wait_docker
   timeout /t 5 /nobreak >nul
@@ -136,81 +133,75 @@ if errorlevel 1 (
   if not errorlevel 1 goto :docker_ready
   set /a _n+=5
   if !_n! GEQ 90 (
-    echo [X] Docker так и не ответил.
+    echo [X] Docker did not respond.
     goto :no_backend
   )
-  echo     … !_n!/90 с
+  echo     ... !_n!/90 s
   goto :wait_docker
 )
 
 :docker_ready
-echo [1/3] Docker готов
-echo [2/3] Тянем ubuntu:24.04 и ставим пакеты автоматически…
-echo [3/3] Сборка %TARGET% в привилегированном контейнере…
+echo [1/3] Docker ready
+echo [2/3] Pulling ubuntu:24.04 and installing packages automatically...
+echo [3/3] Building %TARGET% in a privileged container...
 echo.
 
-rem No -it : works on double-click (no TTY). Log to file + console via powershell tee alternative.
+rem No -it : works on double-click (no TTY).
 docker pull ubuntu:24.04
 if errorlevel 1 (
-  echo [X] Не удалось скачать ubuntu:24.04 — проверьте интернет.
+  echo [X] Failed to pull ubuntu:24.04 - check your internet connection.
   goto :fail
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ErrorActionPreference='Continue';" ^
-  "docker run --rm --privileged " ^
-  "-e DEBIAN_FRONTEND=noninteractive -e NEEDRESTART_MODE=a " ^
-  "-v '%REPO_ROOT%:/lipi' -w /lipi ubuntu:24.04 " ^
-  "bash -lc 'chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%' 2>&1 |" ^
-  "Tee-Object -FilePath '%LOG%'; exit $LASTEXITCODE"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Continue'; docker run --rm --privileged -e DEBIAN_FRONTEND=noninteractive -e NEEDRESTART_MODE=a -v '%REPO_ROOT%:/lipi' -w /lipi ubuntu:24.04 bash -lc 'chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%' 2>&1 | Tee-Object -FilePath '%LOG%'; exit $LASTEXITCODE"
 
 set "ERR=!ERRORLEVEL!"
 if not "!ERR!"=="0" (
   echo.
-  echo [X] Docker-сборка упала ^(код !ERR!^). См. dist\build-windows.log
+  echo [X] Docker build failed ^(code !ERR!^). See dist\build-windows.log
   goto :fail
 )
 goto :success
 
 :offer_wsl_install
 echo.
-echo  Установить Ubuntu в WSL сейчас? Потребуются права администратора.
-echo  После установки Windows может попросить ПЕРЕЗАГРУЗКУ.
-set /p "WI=Ставить WSL+Ubuntu? [Y/N]: "
-if /i not "%WI%"=="Y" if /i not "%WI%"=="Д" if /i not "%WI%"=="y" goto :eof
+echo  Install Ubuntu in WSL now? Administrator rights required.
+echo  Windows may ask you to REBOOT after install.
+set /p "WI=Install WSL+Ubuntu? [Y/N]: "
+if /i not "%WI%"=="Y" if /i not "%WI%"=="y" goto :eof
 powershell -NoProfile -Command "Start-Process wsl -ArgumentList '--install','-d','Ubuntu' -Verb RunAs -Wait"
-echo  Если просили reboot — перезагрузите ПК и снова запустите build-iso.bat
+echo  If reboot was requested - reboot, then run build-iso.bat again.
 goto :eof
 
 :no_backend
 echo.
-echo [X] Нет готового Linux-бэкенда.
+echo [X] No ready Linux backend found.
 echo.
-echo  Сделайте ОДИН раз ^(далее всё будет в 1–2 клика^):
+echo  Do this ONCE (then builds are 1-2 clicks):
 echo.
-echo  A^) WSL2 + Ubuntu  ^(рекомендуется^)
-echo       в PowerShell от Администратора:
+echo  A^) WSL2 + Ubuntu  ^(recommended^)
+echo       In PowerShell as Administrator:
 echo         wsl --install -d Ubuntu
-echo       перезагрузка → снова build-iso.bat
+echo       Reboot, then run build-iso.bat again.
 echo.
 echo  B^) Docker Desktop
 echo       https://www.docker.com/products/docker-desktop/
-echo       установить, запустить, снова build-iso.bat
+echo       Install, start it, then run build-iso.bat again.
 echo.
-echo  Этот скрипт сам скачает зависимости и соберёт ISO.
+echo  This script downloads dependencies and builds the ISO itself.
 goto :fail
 
 :success
 echo.
 echo  ============================================================
-echo   ГОТОВО
+echo   DONE
 echo  ============================================================
 set "ANY="
 if exist "%REPO_ROOT%\dist\lipi-os-live.iso" (
   set "ANY=1"
   for %%F in ("%REPO_ROOT%\dist\lipi-os-live.iso") do (
     echo   Desktop:  dist\lipi-os-live.iso
-    echo             %%~zF байт
+    echo             %%~zF bytes
   )
   if exist "%REPO_ROOT%\dist\lipi-os-live.iso.sha256" type "%REPO_ROOT%\dist\lipi-os-live.iso.sha256"
 )
@@ -218,25 +209,24 @@ if exist "%REPO_ROOT%\dist\lipi-os-server.iso" (
   set "ANY=1"
   for %%F in ("%REPO_ROOT%\dist\lipi-os-server.iso") do (
     echo   Server:   dist\lipi-os-server.iso
-    echo             %%~zF байт
+    echo             %%~zF bytes
   )
   if exist "%REPO_ROOT%\dist\lipi-os-server.iso.sha256" type "%REPO_ROOT%\dist\lipi-os-server.iso.sha256"
 )
 if not defined ANY (
   if /i "%TARGET%"=="clean" (
-    echo   Кэш iso\.work очищен.
+    echo   Cache iso\.work cleaned.
   ) else (
-    echo   [?] ISO-файлы не найдены в dist\ — смотрите лог.
+    echo   [?] ISO files not found in dist\ - see the log.
   )
 )
 echo.
-echo   Запись на флешку: Rufus → режим DD / Image mode
-echo   Лог сборки: dist\build-windows.log
+echo   Flash with Rufus - DD / Image mode
+echo   Build log: dist\build-windows.log
 echo.
 
-rem Open dist folder for convenience (second "click" result)
 if defined ANY (
-  echo   Открываю папку dist…
+  echo   Opening dist folder...
   start "" explorer "%REPO_ROOT%\dist"
 )
 

@@ -1,4 +1,4 @@
-@echo off
-rem Двойной клик = авто-сборка обеих ISO (desktop + server) через WSL/Docker.
+﻿@echo off
+rem Double-click = auto-build both ISOs (desktop + server) via WSL/Docker.
 cd /d "%~dp0"
 call "%~dp0iso\build.bat" %*
