@@ -1,0 +1,12 @@
+[Unit]
+Description=Lipi OS regenerate SSH host keys (Live)
+Before=ssh.service sshd.service
+ConditionPathExists=!/etc/ssh/.lipi_hostkeys_ready
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/lipi-regen-ssh-keys
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

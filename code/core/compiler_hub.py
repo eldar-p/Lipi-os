@@ -53,9 +53,21 @@ SUPPORTED_LANGUAGES = {
         "compile_cmd": (
             ["nasm", "-f", "elf64", "{source}", "-o", "{output}.o", "&&", "ld", "{output}.o", "-o", "{output}"]
             if os.name != "nt"
-            else ["nasm", "-f", "win64", "{source}", "-o", "{output}.obj"]
+            else [
+                "nasm",
+                "-f",
+                "win64",
+                "{source}",
+                "-o",
+                "{output}.obj",
+                "&&",
+                "gcc",
+                "{output}.obj",
+                "-o",
+                "{output}.exe",
+            ]
         ),
-        "run_cmd": ["{output}"],
+        "run_cmd": ["{output}.exe"] if os.name == "nt" else ["{output}"],
     },
     "python": {
         "name": "Python",
@@ -120,13 +132,15 @@ def compile_and_run(language_id: str, code: str) -> tuple[bool, str]:
     if not needs_compiler and language_id == "javascript" and not find_compiler("node"):
         return False, strings["compiler_not_found"].format("node")
 
-    source_file = TEMP_DIR / f"temp{lang_info['extension']}"
+    source_file = TEMP_DIR / f"temp_{os.getpid()}{lang_info['extension']}"
     with open(source_file, "w", encoding="utf-8") as f:
         f.write(code)
 
-    output_file = TEMP_DIR / "temp_exec"
-    if os.name == "nt" and language_id in ("c", "cpp", "rust"):
-        output_file = output_file.with_suffix(".exe")
+    output_file = TEMP_DIR / f"temp_exec_{os.getpid()}"
+    if os.name == "nt" and language_id in ("c", "cpp", "rust", "asm"):
+        # asm run_cmd already uses {output}.exe on Windows
+        if language_id != "asm":
+            output_file = output_file.with_suffix(".exe")
 
     try:
         if lang_info["compile_cmd"]:
@@ -143,8 +157,13 @@ def compile_and_run(language_id: str, code: str) -> tuple[bool, str]:
                 if not stage:
                     continue
                 cmd = list(stage)
-                if compiler_path and cmd[0] in (compiler_name, "nasm", "gcc", "g++", "rustc"):
-                    cmd[0] = compiler_path
+                if compiler_path and cmd[0] in (compiler_name, "nasm", "gcc", "g++", "rustc", "ld"):
+                    if cmd[0] == compiler_name or cmd[0] == "nasm":
+                        cmd[0] = compiler_path
+                    elif cmd[0] in ("gcc", "g++", "ld"):
+                        found = find_compiler(cmd[0])
+                        if found:
+                            cmd[0] = found
                 result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(TEMP_DIR))
                 if result.returncode != 0:
                     return False, strings["error_compile"].format(
@@ -163,15 +182,24 @@ def compile_and_run(language_id: str, code: str) -> tuple[bool, str]:
         output = result.stdout or ""
         if result.stderr:
             output = (output + "\n[STDERR]\n" + result.stderr).strip()
-        if result.returncode != 0 and not output:
-            output = f"Process exited with code {result.returncode}"
+        if result.returncode != 0:
+            if not output:
+                output = f"Process exited with code {result.returncode}"
+            return False, output
         return True, output
     except subprocess.TimeoutExpired:
         return False, strings.get("error_run", "Runtime error:\n{}").format("Timed out after 30s")
     except Exception as e:
         return False, str(e)
     finally:
-        for leftover in TEMP_DIR.glob("temp*"):
+        stem = f"temp_{os.getpid()}"
+        for leftover in TEMP_DIR.glob(f"{stem}*"):
+            try:
+                if leftover.is_file():
+                    leftover.unlink(missing_ok=True)
+            except OSError:
+                pass
+        for leftover in TEMP_DIR.glob(f"temp_exec_{os.getpid()}*"):
             try:
                 if leftover.is_file():
                     leftover.unlink(missing_ok=True)

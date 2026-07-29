@@ -29,14 +29,25 @@ log() {
   printf '\n==> [%s] %s\n' "${VARIANT}" "$*"
 }
 
+cleanup_mounts_at() {
+  local root="${1:-}"
+  [[ -n "${root}" && -d "${root}" ]] || return 0
+  umount -lf "${root}/dev/pts" 2>/dev/null || true
+  umount -lf "${root}/dev" 2>/dev/null || true
+  umount -lf "${root}/proc" 2>/dev/null || true
+  umount -lf "${root}/sys" 2>/dev/null || true
+  umount -lf "${root}/run" 2>/dev/null || true
+}
+
 cleanup_mounts() {
-  if [[ -d "${CHROOT_DIR}" ]]; then
-    umount -lf "${CHROOT_DIR}/dev/pts" 2>/dev/null || true
-    umount -lf "${CHROOT_DIR}/dev" 2>/dev/null || true
-    umount -lf "${CHROOT_DIR}/proc" 2>/dev/null || true
-    umount -lf "${CHROOT_DIR}/sys" 2>/dev/null || true
-    umount -lf "${CHROOT_DIR}/run" 2>/dev/null || true
-  fi
+  cleanup_mounts_at "${CHROOT_DIR}"
+}
+
+cleanup_all_work_mounts() {
+  local d
+  for d in "${ISO_DIR}/.work/desktop/chroot" "${ISO_DIR}/.work/server/chroot"; do
+    cleanup_mounts_at "${d}"
+  done
 }
 
 trap cleanup_mounts EXIT
@@ -117,15 +128,18 @@ apt-get install -y -qq \
   iputils-ping \
   net-tools \
   isc-dhcp-client \
+  systemd-resolved \
   kmod
 
 sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen || true
 sed -i 's/^# *ru_RU.UTF-8/ru_RU.UTF-8/' /etc/locale.gen || true
 locale-gen
 update-locale LANG=en_US.UTF-8
+# Live console: empty root password (local TTY only). Prefer setting a password after boot.
 passwd -d root
 systemctl enable systemd-networkd.service || true
-systemctl enable systemd-resolved.service 2>/dev/null || true
+systemctl enable systemd-resolved.service || true
+ln -sfn /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf 2>/dev/null || true
 update-initramfs -u
 apt-get clean
 rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -162,6 +176,7 @@ apt-get install -y -qq \
   iproute2 \
   iputils-ping \
   isc-dhcp-client \
+  systemd-resolved \
   openssh-server \
   kmod
 
@@ -173,20 +188,24 @@ sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen || true
 sed -i 's/^# *ru_RU.UTF-8/ru_RU.UTF-8/' /etc/locale.gen || true
 locale-gen
 update-locale LANG=C.UTF-8
-passwd -d root
+# Live password (lab): root / lipi — change after first boot
+echo 'root:lipi' | chpasswd
+passwd -u root 2>/dev/null || true
 
-# SSH for headless access (empty root password — Live only; change on install)
 systemctl enable ssh.service || systemctl enable sshd.service || true
 systemctl enable systemd-networkd.service || true
-systemctl enable systemd-resolved.service 2>/dev/null || true
+systemctl enable systemd-resolved.service || true
+ln -sfn /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf 2>/dev/null || true
 
-# Permit root login on Live server (local / lab use)
+# SSH: password login allowed, but NOT empty passwords
 if [[ -f /etc/ssh/sshd_config ]]; then
   sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
   sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-  # Empty password login for Live console convenience
-  sed -i 's/^#\?PermitEmptyPasswords.*/PermitEmptyPasswords yes/' /etc/ssh/sshd_config
+  sed -i 's/^#\?PermitEmptyPasswords.*/PermitEmptyPasswords no/' /etc/ssh/sshd_config
 fi
+
+# Do not ship host private keys in the ISO — regenerated on first boot
+rm -f /etc/ssh/ssh_host_* 2>/dev/null || true
 
 update-initramfs -u
 apt-get clean
@@ -215,7 +234,24 @@ EOF
   mount -t proc proc "${CHROOT_DIR}/proc"
   mount -t sysfs sysfs "${CHROOT_DIR}/sys"
   mount -t tmpfs tmpfs "${CHROOT_DIR}/run"
-  cp /etc/resolv.conf "${CHROOT_DIR}/etc/resolv.conf"
+  # Host resolv only for apt inside chroot; replaced before squashfs.
+  if [[ -f /etc/resolv.conf ]]; then
+    cp /etc/resolv.conf "${CHROOT_DIR}/etc/resolv.conf"
+  else
+    printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' >"${CHROOT_DIR}/etc/resolv.conf"
+  fi
+}
+
+finalize_live_rootfs() {
+  log "Finalizing Live rootfs (DNS, machine-id, network)"
+  # Public DNS fallback for first boot (resolved may rewrite later)
+  printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' >"${CHROOT_DIR}/etc/resolv.conf"
+  # Unique machine-id per boot (empty → systemd generates)
+  : >"${CHROOT_DIR}/etc/machine-id"
+  rm -f "${CHROOT_DIR}/var/lib/dbus/machine-id" 2>/dev/null || true
+  # Drop static /dev nodes left from bootstrap; live uses devtmpfs
+  find "${CHROOT_DIR}/dev" -mindepth 1 -maxdepth 1 ! -name 'pts' ! -name 'shm' \
+    -exec rm -rf {} + 2>/dev/null || true
 }
 
 configure_rootfs() {
@@ -350,6 +386,11 @@ EOF
 
   # Mark edition inside Lipi tree
   printf '%s\n' "${VARIANT}" >"${CHROOT_DIR}/opt/lipi-os/EDITION"
+
+  if [[ "${VARIANT}" == "server" ]]; then
+    chmod 755 "${CHROOT_DIR}/usr/local/sbin/lipi-regen-ssh-keys" 2>/dev/null || true
+    chroot "${CHROOT_DIR}" systemctl enable lipi-ssh-hostkeys.service 2>/dev/null || true
+  fi
 }
 
 make_squashfs() {
@@ -393,11 +434,11 @@ copy_kernel() {
 }
 
 make_iso() {
-  log "Building hybrid BIOS+UEFI ISO → ${ISO_NAME}"
+  log "Building hybrid BIOS+UEFI ISO → ${ISO_NAME} (label ${ISO_LABEL})"
   mkdir -p "${DIST_DIR}"
   local out="${DIST_DIR}/${ISO_NAME}"
   rm -f "${out}"
-  grub-mkrescue -o "${out}" "${IMAGE_DIR}"
+  grub-mkrescue -o "${out}" -V "${ISO_LABEL}" "${IMAGE_DIR}"
   local size
   size="$(du -h "${out}" | awk '{print $1}')"
   log "ISO ready: ${out} (${size})"
@@ -412,6 +453,7 @@ build_variant() {
   bootstrap_rootfs
   configure_rootfs
   install_lipi
+  finalize_live_rootfs
   make_squashfs
   copy_kernel
   make_iso
@@ -444,7 +486,7 @@ main() {
       exit 0
       ;;
     clean)
-      cleanup_mounts
+      cleanup_all_work_mounts
       rm -rf "${ISO_DIR}/.work"
       log "Cleaned ${ISO_DIR}/.work"
       ;;

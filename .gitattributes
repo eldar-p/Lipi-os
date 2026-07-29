@@ -1,3 +1,8 @@
 # Force Windows batch files to keep CRLF (cmd.exe breaks on LF-only).
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Shell / overlay scripts must stay LF for bash under WSL/Linux.
+*.sh text eol=lf
+iso/overlay/** text eol=lf
+iso/overlay-server/** text eol=lf

@@ -92,6 +92,27 @@ def run_gui() -> None:
             return "break"
 
         def worker():
+            # Interactive Lipi commands (settings/tasks/store/compile) need the UI thread.
+            interactive = cmd.split(None, 1)[0].lower() in {
+                "settings",
+                "tasks",
+                "store",
+                "compile",
+                "open",
+            }
+            if interactive:
+
+                def run_interactive():
+                    result, new_cwd = _run_line(cmd, state["cwd"])
+                    state["cwd"] = new_cwd
+                    if result:
+                        write(result + "\n")
+                    write(f"{state['cwd']}$ ")
+                    out.mark_set("input_start", "insert")
+
+                root.after(0, run_interactive)
+                return
+
             result, new_cwd = _run_line(cmd, state["cwd"])
             state["cwd"] = new_cwd
 

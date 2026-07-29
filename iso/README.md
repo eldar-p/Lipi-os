@@ -7,8 +7,10 @@
 | **Desktop** `lipi-os-live.iso` | `sudo ./iso/build.sh desktop` | Обычная полная версия (GUI-приложения, tkinter) |
 | **Server** `lipi-os-server.iso` | `sudo ./iso/build.sh server` | Урезанная CLI-версия + SSH |
 
+Готовые файлы всегда в **`dist/` в корне проекта** (на Windows — рядом с `build-iso.bat`), не «где-то в WSL».
+
 ```bash
-sudo ./iso/build.sh all      # оба сразу
+sudo ./iso/build.sh all      # оба сразу → dist/*.iso
 sudo ./iso/build.sh clean    # снести iso/.work
 ```
 
@@ -68,9 +70,15 @@ Windows часто кладёт zip в `...\Lipi-os-...(1)\...`.
 
 - вызывает `wsl --exec` (настоящий argv, без склейки)
 - копирует репо в `/var/tmp/lipi-os-build` и собирает там
-- копирует готовые `.iso` обратно в `dist\`
+- **обязательно копирует** готовые `.iso` обратно в **`проекти\dist\`** (Windows-папка)
+- падает с ошибкой, если ISO не появились в `dist\`
 
-Папку с `(1)` переименовывать не нужно.
+Папку с `(1)` переименовывать не нужно. После успеха откроется `dist\` в проводнике.
+
+### Server Live: SSH
+
+Логин: `root` / пароль: `lipi` (смените после загрузки).  
+Пустые пароли по SSH отключены. Host keys генерируются при первом boot.
 
 ## Архитектура
 

@@ -1,0 +1,7 @@
+# DHCP for common wired interfaces (Live ISO).
+[Match]
+Name=en* eth*
+
+[Network]
+DHCP=yes
+LLMNR=no

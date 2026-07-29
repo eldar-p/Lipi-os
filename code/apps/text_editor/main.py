@@ -67,7 +67,7 @@ def run_gui(initial: str | None = None) -> None:
             save_as()
             return
         try:
-            current["path"].write_text(text.get("1.0", tk.END), encoding="utf-8")
+            current["path"].write_text(text.get("1.0", "end-1c"), encoding="utf-8")
             set_title()
             status.set(f"Saved: {current['path']}")
         except OSError as e:

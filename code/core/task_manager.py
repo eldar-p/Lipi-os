@@ -1,6 +1,7 @@
 """Lipi OS task manager (CLI + GUI)."""
 from __future__ import annotations
 
+import os
 import sys
 
 from i18n import get_language_strings
@@ -20,27 +21,34 @@ def get_processes() -> list[dict]:
     if psutil is None:
         return []
 
-    # First pass primes cpu_percent counters
+    import time
+
+    # Prime cpu_percent counters, then wait so samples are meaningful
+    procs = []
     for proc in psutil.process_iter(["pid"]):
         try:
             proc.cpu_percent(None)
+            procs.append(proc)
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
 
+    time.sleep(0.15)
+
     processes = []
-    for proc in psutil.process_iter(["pid", "name", "cpu_percent", "memory_info"]):
+    for proc in procs:
         try:
-            info = proc.info
-            mem = info.get("memory_info")
-            mem_mb = round(mem.rss / (1024 * 1024), 1) if mem else 0.0
-            processes.append(
-                {
-                    "pid": info["pid"],
-                    "name": info.get("name") or "Unknown",
-                    "cpu": float(info.get("cpu_percent") or 0.0),
-                    "memory": mem_mb,
-                }
-            )
+            with proc.oneshot():
+                cpu = float(proc.cpu_percent(None) or 0.0)
+                mem = proc.memory_info()
+                mem_mb = round(mem.rss / (1024 * 1024), 1) if mem else 0.0
+                processes.append(
+                    {
+                        "pid": proc.pid,
+                        "name": proc.name() or "Unknown",
+                        "cpu": cpu,
+                        "memory": mem_mb,
+                    }
+                )
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
 
@@ -53,6 +61,9 @@ def terminate_process(pid: int) -> bool:
         return False
     try:
         proc = psutil.Process(pid)
+        # Refuse to kill the current Lipi process / init
+        if pid in (0, 1) or pid == os.getpid():
+            return False
         proc.terminate()
         try:
             proc.wait(timeout=3)

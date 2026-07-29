@@ -17,6 +17,16 @@ os.chdir(BASE_DIR)
 from i18n import ensure_lang_files, get_language_strings
 from paths import APPS_DIR, ensure_runtime_dirs
 
+
+def _resolved_apps_dir():
+    """Prefer configured app_directory (same as store / open)."""
+    try:
+        from core.app_store import _apps_dir
+
+        return _apps_dir()
+    except Exception:
+        return APPS_DIR
+
 COLORS = {
     "green": "\033[92m",
     "cyan": "\033[96m",
@@ -187,8 +197,8 @@ def launch_gui() -> bool:
     menubar = Menu(desktop.root)
     apps_menu = Menu(menubar, tearoff=0)
 
-    if APPS_DIR.exists():
-        for app_folder in sorted(APPS_DIR.iterdir()):
+    if _resolved_apps_dir().exists():
+        for app_folder in sorted(_resolved_apps_dir().iterdir()):
             if not app_folder.is_dir() or not (app_folder / "main.py").exists():
                 continue
             desc_file = app_folder / "description.json"

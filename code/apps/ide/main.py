@@ -106,7 +106,7 @@ def run_gui(start_dir: str | None = None) -> None:
                 return
             path = Path(picked)
             current_file["path"] = path
-        path.write_text(editor.get("1.0", tk.END), encoding="utf-8")
+        path.write_text(editor.get("1.0", "end-1c"), encoding="utf-8")
         status.set(f"Saved {path}")
         refresh_tree()
 

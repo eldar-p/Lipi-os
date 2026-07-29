@@ -54,7 +54,7 @@ echo   Manual target example:
 echo     build-iso.bat desktop
 echo.
 echo   Starting in 5 seconds...  ^(Ctrl+C = cancel^)
-timeout /t 5 /nobreak >nul 2>&1
+timeout /t 5 >nul 2>&1
 if errorlevel 1 (
   echo Cancelled.
   goto :fail
