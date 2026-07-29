@@ -74,15 +74,15 @@ sudo ./iso/build.sh server    # урезанная CLI+SSH → dist/lipi-os-serv
 sudo ./iso/build.sh all       # обе
 ```
 
-На **Windows** (нужен WSL2 или Docker Desktop):
+На **Windows** (один раз: WSL2 или Docker Desktop, дальше 1–2 клика):
 
 ```bat
-build-iso.bat
-build-iso.bat desktop
-build-iso.bat server
+build-iso.bat                 :: обе ISO, автостарт через 5 сек
+iso\build-desktop.bat         :: только обычная
+iso\build-server.bat          :: только серверная
 ```
 
-Подробности: [`iso/README.md`](iso/README.md).
+Скрипт сам ставит зависимости, собирает без пароля sudo (`wsl -u root`) или через Docker и открывает `dist\`.
 
 ## Формат приложения
 

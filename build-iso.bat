@@ -1,4 +1,4 @@
 @echo off
-rem Удобный ярлык из корня репозитория → iso\build.bat
+rem Двойной клик = авто-сборка обеих ISO (desktop + server) через WSL/Docker.
 cd /d "%~dp0"
 call "%~dp0iso\build.bat" %*

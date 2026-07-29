@@ -12,24 +12,34 @@ sudo ./iso/build.sh all      # оба сразу
 sudo ./iso/build.sh clean    # снести iso/.work
 ```
 
-## Windows (`.bat`)
+## Windows — в 1–2 клика
 
-Нужен **WSL2 (Ubuntu)** или **Docker Desktop** — ISO Linux нативно в cmd не собирается.
+Один раз поставьте **WSL2 + Ubuntu** или **Docker Desktop**. Дальше:
+
+| Действие | Файл |
+|----------|------|
+| Двойной клик → обе ISO | `build-iso.bat` |
+| Только desktop | `iso\build-desktop.bat` |
+| Только server | `iso\build-server.bat` |
+| Обе явно | `iso\build-all.bat` |
+
+Что делает скрипт сам:
+
+1. Ищет WSL и запускает сборку от **root** (без пароля sudo)
+2. Или Docker: тянет `ubuntu:24.04`, ставит пакеты, собирает
+3. Скачивает все apt-зависимости
+4. Пишет лог в `dist\build-windows.log`
+5. По успеху открывает папку `dist\`
 
 ```bat
 build-iso.bat
 build-iso.bat desktop
 build-iso.bat server
-build-iso.bat all
+build-iso.bat menu
 ```
 
-или из папки `iso`:
-
-```bat
-iso\build.bat desktop
-```
-
-Скрипт сам найдёт WSL (предпочтительно) или Docker и вызовет `iso/build.sh`.
+Первый запуск WSL: в PowerShell от Администратора  
+`wsl --install -d Ubuntu` → перезагрузка → снова `build-iso.bat`.
 
 ## Архитектура
 
