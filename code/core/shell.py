@@ -86,6 +86,10 @@ def cmd_exit(args):
 
 
 def cmd_help(args):
+    # Prefer extended catalog from commands/help.py when loaded
+    handler = COMMANDS.get("help")
+    if handler is not cmd_help:
+        return handler(args)
     lang = _load_lang()
     names = sorted(COMMANDS.keys())
     return lang.get("available_commands", "Available commands: {}").format(", ".join(names))
@@ -127,9 +131,12 @@ def cmd_compile(args):
     if args and args[0] == "--gui":
         create_gui_compiler_hub()
     else:
-        cli_compiler_hub()
+        cli_compiler_hub(args)
     return ""
 
+
+# Session command history (used by `history`)
+HISTORY: list[str] = []
 
 COMMANDS = {
     "ls": cmd_ls,
@@ -151,7 +158,10 @@ COMMANDS = {
 
 
 def _load_external_commands() -> None:
-    """Load commands/<name>.py modules that expose run(args)."""
+    """Load commands/<name>.py modules that expose run(args).
+
+    External modules may override builtins (e.g. extended ``help``).
+    """
     if not COMMANDS_DIR.exists():
         return
 
@@ -159,8 +169,6 @@ def _load_external_commands() -> None:
         if path.name.startswith("_"):
             continue
         name = path.stem
-        if name in COMMANDS:
-            continue
         try:
             spec = importlib.util.spec_from_file_location(f"lipi_cmd_{name}", path)
             if spec is None or spec.loader is None:
@@ -180,10 +188,13 @@ def run_command(line: str) -> str:
     if not line.strip():
         return ""
 
-    # Support simple quotes for paths with spaces
     parts = _split_args(line)
     if not parts:
         return ""
+
+    HISTORY.append(line.strip())
+    if len(HISTORY) > 1000:
+        del HISTORY[:-1000]
 
     cmd = parts[0]
     args = parts[1:]

@@ -4,12 +4,12 @@
   - Приложения: settings, text_editor, console, ide, browser
     (+ calculator, file_manager)
   - Live ISO desktop + server (`sudo ./iso/build.sh desktop|server|all`)
+  - Много shell-команд (files/system/net/dev) + help/history/sysinfo
+  - Compiler Hub: C/C++/Java/Rust/Go/JS/TS/HTML/ASM/… + `langs`
 
 Что хочу добавить дальше:
   - полноценные темы (применение light/dark ко всем окнам)
-  - полная поддержка русского и английского языков
   - больше приложений (игры, утилиты)
-  - компиляторы для прямого запуска кода (C++, C, C#, Rust, Assembler, ...)
   - кросс-платформенность:
       Windows (11/10/7)
       популярные Linux-дистрибутивы (Ubuntu, Debian, Kali, Arch)

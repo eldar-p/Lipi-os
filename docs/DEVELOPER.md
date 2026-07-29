@@ -279,17 +279,29 @@ CLI: `store` · GUI: `store --gui` / меню App Store.
 
 ## 8. Compiler Hub
 
-```python
-from core.compiler_hub import compile_and_run, SUPPORTED_LANGUAGES
+Поддерживаемые языки (если установлен тулчейн на хосте):
 
-ok, output = compile_and_run("python", "print(1+1)")
-ok, output = compile_and_run("cpp", 'int main(){return 0;}')
+Python, JavaScript, TypeScript, HTML, CSS, C, C++, Java, Rust, Go, C#, Assembly (NASM),
+Kotlin, Lua, Ruby, PHP, Bash, Perl, Zig.
+
+```bash
+langs                 # статус тулчейнов
+compile langs
+compile run python print(1+1)
+compile run c '#include <stdio.h>\nint main(){puts("hi");}'
+compile file java Main.java
+compile --gui
 ```
 
-Поддержка: `python`, `javascript`, `c`, `cpp`, `cs`, `rust`, `asm`.  
+API:
+
+```python
+from core.compiler_hub import compile_and_run, language_status, resolve_language
+ok, output = compile_and_run("rust", 'fn main(){ println!("hi"); }')
+```
+
 Пути к компиляторам — в `config.compiler_paths` или автопоиск в `PATH`.
 
----
 
 ## 9. Диспетчер задач
 

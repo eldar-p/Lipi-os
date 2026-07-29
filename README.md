@@ -14,12 +14,12 @@ python main.py            # GUI если доступен, иначе CLI
 
 ## Что умеет сейчас (v8+)
 
-- Shell: `ls`, `cd`, `pwd`, `mkdir`, `cat`, `echo`, `touch`, `cp`, `mv`, `rm`, `date`, `run`, `apps`, `open`, `help`, `exit`
-- Системные команды: `settings`, `tasks`, `store`, `compile`
+- Shell: файлы (`ls`, `cp`, `grep`, `tree`…), система (`sysinfo`, `ps`, `free`…), сеть (`ping`, `fetch`, `serve`…)
+- `help` / `help files` — каталог команд; `history` — история
+- `langs` / `compile langs` — языки и тулчейны
+- Compiler Hub: Python, JS/TS, HTML/CSS, C/C++, Java, Rust, Go, C#, ASM, Kotlin, Lua, Ruby, PHP, Bash, Perl, Zig…
 - Приложения: Calculator, File Manager, Settings, Text Editor, Console, IDE, Browser
-- SDK для приложений (`code/sdk`)
-- Настройки языка (ru/en) и темы
-- Диспетчер задач, магазин (.lipi / zip), Compiler Hub
+- SDK, настройки ru/en, магазин, Live ISO (desktop/server)
 
 ## Документация для разработчиков
 
