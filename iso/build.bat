@@ -12,12 +12,15 @@ rem
 rem  Backends (in order):
 rem    1) WSL as root (no sudo password) + auto apt
 rem    2) Docker Desktop (everything inside the container)
+rem
+rem  Actual build runs via iso\build-windows.ps1 (avoids cmd quoting bugs).
 rem =============================================================================
 
 cd /d "%~dp0.."
 set "REPO_ROOT=%CD%"
 set "TARGET=%~1"
 set "LOG=%REPO_ROOT%\dist\build-windows.log"
+set "PS1=%REPO_ROOT%\iso\build-windows.ps1"
 set "SKIP_PAUSE=%LIPI_NOPAUSE%"
 
 if not exist "%REPO_ROOT%\dist" mkdir "%REPO_ROOT%\dist" >nul 2>&1
@@ -35,6 +38,10 @@ if not exist "%REPO_ROOT%\iso\build.sh" (
 )
 if not exist "%REPO_ROOT%\iso\auto-build.sh" (
   echo [X] Missing iso\auto-build.sh
+  goto :fail
+)
+if not exist "%PS1%" (
+  echo [X] Missing iso\build-windows.ps1
   goto :fail
 )
 
@@ -75,33 +82,23 @@ if errorlevel 1 goto :try_docker
 
 wsl -e true >nul 2>&1
 if errorlevel 1 (
-  echo [!] WSL found, but distro is not ready.
-  echo     Trying to install Ubuntu...
+  echo [WARN] WSL found, but distro is not ready.
+  echo        Trying to install Ubuntu...
   call :offer_wsl_install
   wsl -e true >nul 2>&1
   if errorlevel 1 goto :try_docker
 )
 
 echo [1/3] WSL found - building as root ^(no sudo password^)...
-for /f "delims=" %%i in ('wsl -e wslpath -a "%REPO_ROOT%" 2^>nul') do set "WSL_ROOT=%%i"
-if not defined WSL_ROOT (
-  set "WSL_ROOT=%REPO_ROOT%"
-  set "WSL_ROOT=!WSL_ROOT:\=/!"
-  set "WSL_ROOT=!WSL_ROOT::=!"
-  set "WSL_ROOT=/mnt/!WSL_ROOT!"
-  call :tolower_drive
-)
-echo       path: !WSL_ROOT!
 echo [2/3] apt: dependencies will be installed automatically if needed
 echo [3/3] building %TARGET% ...
 echo.
 
-rem Live output + log via PowerShell Tee-Object
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Continue'; wsl -u root -- bash -lc \"export DEBIAN_FRONTEND=noninteractive; cd '!WSL_ROOT!' && chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%\" 2>&1 | Tee-Object -FilePath '%LOG%'; exit $LASTEXITCODE"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Backend wsl -RepoRoot "%REPO_ROOT%" -Target "%TARGET%" -LogPath "%LOG%"
 set "ERR=!ERRORLEVEL!"
 if not "!ERR!"=="0" (
   echo.
-  echo [!] WSL build failed ^(code !ERR!^). Trying Docker...
+  echo [WARN] WSL build failed ^(exit code !ERR!^). Trying Docker...
   goto :try_docker
 )
 goto :success
@@ -123,9 +120,9 @@ if errorlevel 1 goto :no_backend
 
 docker info >nul 2>&1
 if errorlevel 1 (
-  echo [!] Docker is installed but not running.
-  echo     Start Docker Desktop and wait for the green indicator.
-  echo     Waiting up to 90 seconds...
+  echo [WARN] Docker is installed but not running.
+  echo        Start Docker Desktop and wait for the green indicator.
+  echo        Waiting up to 90 seconds...
   set /a _n=0
   :wait_docker
   timeout /t 5 /nobreak >nul
@@ -136,7 +133,7 @@ if errorlevel 1 (
     echo [X] Docker did not respond.
     goto :no_backend
   )
-  echo     ... !_n!/90 s
+  echo        ... !_n!/90 s
   goto :wait_docker
 )
 
@@ -146,19 +143,11 @@ echo [2/3] Pulling ubuntu:24.04 and installing packages automatically...
 echo [3/3] Building %TARGET% in a privileged container...
 echo.
 
-rem No -it : works on double-click (no TTY).
-docker pull ubuntu:24.04
-if errorlevel 1 (
-  echo [X] Failed to pull ubuntu:24.04 - check your internet connection.
-  goto :fail
-)
-
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Continue'; docker run --rm --privileged -e DEBIAN_FRONTEND=noninteractive -e NEEDRESTART_MODE=a -v '%REPO_ROOT%:/lipi' -w /lipi ubuntu:24.04 bash -lc 'chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh %TARGET%' 2>&1 | Tee-Object -FilePath '%LOG%'; exit $LASTEXITCODE"
-
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Backend docker -RepoRoot "%REPO_ROOT%" -Target "%TARGET%" -LogPath "%LOG%"
 set "ERR=!ERRORLEVEL!"
 if not "!ERR!"=="0" (
   echo.
-  echo [X] Docker build failed ^(code !ERR!^). See dist\build-windows.log
+  echo [X] Docker build failed ^(exit code !ERR!^). See dist\build-windows.log
   goto :fail
 )
 goto :success
@@ -238,14 +227,3 @@ exit /b 0
 echo.
 if /i not "%SKIP_PAUSE%"=="1" pause
 exit /b 1
-
-:tolower_drive
-set "WSL_ROOT=%WSL_ROOT:/mnt/A=/mnt/a%"
-set "WSL_ROOT=%WSL_ROOT:/mnt/B=/mnt/b%"
-set "WSL_ROOT=%WSL_ROOT:/mnt/C=/mnt/c%"
-set "WSL_ROOT=%WSL_ROOT:/mnt/D=/mnt/d%"
-set "WSL_ROOT=%WSL_ROOT:/mnt/E=/mnt/e%"
-set "WSL_ROOT=%WSL_ROOT:/mnt/F=/mnt/f%"
-set "WSL_ROOT=%WSL_ROOT:/mnt/G=/mnt/g%"
-set "WSL_ROOT=%WSL_ROOT:/mnt/H=/mnt/h%"
-goto :eof
