@@ -1,12 +1,22 @@
 # Lipi OS Live ISO
 
-Своя ОС на ядре Linux: загрузочный образ для реального ПК (BIOS / UEFI).
+Два образа своей ОС на ядре Linux (BIOS / UEFI).
+
+| Образ | Команда сборки | Для чего |
+|-------|----------------|----------|
+| **Desktop** `lipi-os-live.iso` | `sudo ./iso/build.sh desktop` | Обычная полная версия (GUI-приложения, tkinter) |
+| **Server** `lipi-os-server.iso` | `sudo ./iso/build.sh server` | Урезанная CLI-версия + SSH |
+
+```bash
+sudo ./iso/build.sh all      # оба сразу
+sudo ./iso/build.sh clean    # снести iso/.work
+```
 
 ## Архитектура
 
 ```
 ┌─────────────────────────────────────┐
-│            Lipi OS (своя)           │
+│     Lipi OS (desktop / server)      │
 │  shell · apps · settings · store    │
 ├─────────────────────────────────────┤
 │     userspace (systemd, python…)    │
@@ -15,68 +25,52 @@
 └─────────────────────────────────────┘
 ```
 
-Это не «программа внутри Ubuntu», а **свой дистрибутив Lipi OS**:
-- своё имя (`/etc/os-release`, hostname `lipi-os`, GRUB «Lipi OS»)
-- своя оболочка как основной интерфейс после загрузки
-- под капотом — ядро Linux (иначе на железе не загрузиться без написания своего ядра)
+## Desktop (обычная)
 
-Пакеты ядра и базовый userspace берутся из Debian/Ubuntu-репозиториев только как фундамент; идентичность системы — Lipi.
+- Ядро `linux-image-generic`
+- Python + **tkinter**
+- Все приложения: calculator, file_manager, settings, text_editor, console, ide, browser
+- Автозапуск Lipi CLI (GUI-приложения через `open …`)
 
-## Что внутри образа
+## Server (оптимизированная)
 
-- Linux kernel + Live initramfs
-- Python 3 и Lipi OS в `/opt/lipi-os`
-- Автологин и автозапуск `lipi-os --cli`
-- Hybrid ISO (USB / DVD, BIOS + UEFI)
+Что убрано / упрощено:
 
-## Сборка
-
-На Ubuntu/Debian (нужен root):
-
-```bash
-sudo ./iso/build.sh
-```
-
-Готовый образ:
-
-```
-dist/lipi-os-live.iso
-dist/lipi-os-live.iso.sha256
-```
-
-Полная пересборка rootfs:
-
-```bash
-sudo ./iso/build.sh clean
-sudo ./iso/build.sh
-```
+- Нет GUI: без `python3-tk`, без browser / ide / file_manager / calculator
+- Меньше ядро: `linux-image-virtual` (если есть в репозитории)
+- Вырезаны doc/man/лишние locale при сборке
+- Остаются: **settings**, **console**, **text_editor** (CLI)
+- Добавлен **OpenSSH** (root live-login для лаборатории)
+- Hostname: `lipi-server`
+- Лаунчер всегда `--cli`
 
 ## Запись на флешку
 
-Linux:
-
 ```bash
 sudo dd if=dist/lipi-os-live.iso of=/dev/sdX bs=4M status=progress oflag=sync
+# или
+sudo dd if=dist/lipi-os-server.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
-Замените `/dev/sdX` на устройство флешки (`lsblk`). На Windows — [Rufus](https://rufus.ie/) в режиме DD.
+Windows: Rufus (DD mode). Secure Boot при необходимости отключить.
 
-## Загрузка
-
-1. USB → Boot Menu → **Lipi OS (Live)**
-2. При Secure Boot — отключите его в UEFI
-3. Откроется оболочка Lipi OS
+## После загрузки
 
 ```bash
-exit                 # системный shell Linux
-lipi-os --cli        # снова Lipi
-LIPI_SKIP_AUTOSTART=1 bash   # войти без автозапуска
-cat /etc/os-release  # PRETTY_NAME="Lipi OS 8+"
-uname -s             # Linux
+apps                 # список приложений
+open settings --cli
+open console --cli
+exit                 # системный shell
+cat /etc/os-release  # Desktop или Server
+```
+
+Server по SSH (после получения IP, Live с пустым паролем root — только для тестов):
+
+```bash
+ssh root@<ip>
 ```
 
 ## Важно
 
 - Live: изменения не сохраняются после перезагрузки.
-- GUI (`--gui`) без Xorg в этой сборке не стартует — по умолчанию CLI.
-- Своё ядро с нуля (не Linux) — отдельный огромный проект; здесь сознательно выбран Linux как ядро, а «своя» часть — всё, что выше него.
+- ISO в git не хранится — только скрипты сборки (`dist/` в `.gitignore`).

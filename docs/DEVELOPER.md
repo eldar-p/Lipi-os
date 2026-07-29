@@ -424,11 +424,12 @@ def run(args):
 
 ## 14. Live ISO (реальные ПК)
 
-Сборка своего дистрибутива на ядре Linux:
+Две редакции:
 
 ```bash
-sudo ./iso/build.sh
-# dist/lipi-os-live.iso → dd / Rufus на флешку
+sudo ./iso/build.sh desktop   # полная → dist/lipi-os-live.iso
+sudo ./iso/build.sh server    # CLI+SSH, без GUI → dist/lipi-os-server.iso
+sudo ./iso/build.sh all
 ```
 
 Подробности: `iso/README.md`.

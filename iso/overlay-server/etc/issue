@@ -1,0 +1,4 @@
+Lipi OS Server \n \l
+
+Minimal CLI · SSH on · no GUI
+Skip Lipi:  LIPI_SKIP_AUTOSTART=1 bash

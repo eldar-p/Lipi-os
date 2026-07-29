@@ -66,13 +66,15 @@ lipi-os/
 
 ## Загрузка на реальном ПК (Live ISO)
 
-Lipi OS собирается как **свой дистрибутив на ядре Linux** (не приложение внутри чужой ОС):
+Две сборки на ядре Linux:
 
 ```bash
-sudo ./iso/build.sh
+sudo ./iso/build.sh desktop   # обычная → dist/lipi-os-live.iso
+sudo ./iso/build.sh server    # урезанная CLI+SSH → dist/lipi-os-server.iso
+sudo ./iso/build.sh all       # обе
 ```
 
-Образ: `dist/lipi-os-live.iso`. Запись на USB и загрузка — в [`iso/README.md`](iso/README.md).
+Подробности: [`iso/README.md`](iso/README.md).
 
 ## Формат приложения
 

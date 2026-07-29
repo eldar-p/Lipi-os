@@ -1,0 +1,24 @@
+Что уже есть / добавлено:
+  - SDK приложений (code/sdk) + команда open
+  - Документация разработчика: docs/DEVELOPER.md
+  - Приложения: settings, text_editor, console, ide, browser
+    (+ calculator, file_manager)
+  - Live ISO desktop + server (`sudo ./iso/build.sh desktop|server|all`)
+
+Что хочу добавить дальше:
+  - полноценные темы (применение light/dark ко всем окнам)
+  - полная поддержка русского и английского языков
+  - больше приложений (игры, утилиты)
+  - компиляторы для прямого запуска кода (C++, C, C#, Rust, Assembler, ...)
+  - кросс-платформенность:
+      Windows (11/10/7)
+      популярные Linux-дистрибутивы (Ubuntu, Debian, Kali, Arch)
+      Android (10-15)
+      macOS
+
+Библиотеки для Lipi OS v9:
+  psutil>=5.9.0
+  requests>=2.28.0
+  (опционально GUI) системный tkinter
+  PyQt6>=6.4.0   — планируется
+  kivy>=2.2.0    — планируется для Android
