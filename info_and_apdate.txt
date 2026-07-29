@@ -1,19 +1,24 @@
-Что я хочу добавить в дальнейшем:
-  настройки
-  полная поддержака руского и англиского языка в настройках
-  диспечеры задач
-  свой магазин приложений
-  сделать свой движёк для отрисовки граф. интерфейса (окна, приложения ...)
-  добавить встроенные приложения (лишние по типу игр, программ)
-  довабить компеляторы что в дальнейшем мне позволит напрямую запускать код (c++, c, c#, rust, asenbler , ...)
-  И самое главное! Кросс-платформинг для:
-    windows (11/10/7)
-    популярные linux дистрибутивы (Ubuntu, Debian, Kali Linux, Arch Linux)
-    Android (10-15)
-    macOS
+Что уже есть / добавлено:
+  - SDK приложений (code/sdk) + команда open
+  - Документация разработчика: docs/DEVELOPER.md
+  - Приложения: settings, text_editor, console, ide, browser
+    (+ calculator, file_manager)
+  - Live ISO desktop + server (`sudo ./iso/build.sh desktop|server|all`)
+  - Много shell-команд (files/system/net/dev) + help/history/sysinfo
+  - Compiler Hub: C/C++/Java/Rust/Go/JS/TS/HTML/ASM/… + `langs` + `compilers install`
 
-Библеотеки которые нужно иметь для запуска lipi os v9 :
-psutil>=5.9.0
-requests>=2.28.0
-PyQt6>=6.4.0                
-kivy>=2.2.0                 
+Что хочу добавить дальше:
+  - полноценные темы (применение light/dark ко всем окнам)
+  - больше приложений (игры, утилиты)
+  - кросс-платформенность:
+      Windows (11/10/7)
+      популярные Linux-дистрибутивы (Ubuntu, Debian, Kali, Arch)
+      Android (10-15)
+      macOS
+
+Библиотеки для Lipi OS v9:
+  psutil>=5.9.0
+  requests>=2.28.0
+  (опционально GUI) системный tkinter
+  PyQt6>=6.4.0   — планируется
+  kivy>=2.2.0    — планируется для Android

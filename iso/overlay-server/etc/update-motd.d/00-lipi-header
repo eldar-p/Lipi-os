@@ -1,0 +1,7 @@
+#!/bin/sh
+cat <<'EOF'
+
+ Lipi OS 8+ Server  —  optimized CLI edition
+ uname -s => Linux   |   SSH: enabled
+
+EOF

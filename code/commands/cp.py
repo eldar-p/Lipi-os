@@ -1,5 +1,7 @@
-import shutil
+"""Copy files or directories."""
 import os
+import shutil
+
 
 def run(args):
     if len(args) < 2:

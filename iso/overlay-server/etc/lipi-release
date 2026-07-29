@@ -1,0 +1,9 @@
+NAME="Lipi OS"
+VERSION="8+"
+EDITION=server
+KERNEL=linux
+BASE=debian-minbase
+SHELL=/opt/lipi-os
+BUILD_CHANNEL=live-server
+APPS=settings,console,text_editor
+SSH=enabled
