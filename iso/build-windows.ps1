@@ -3,8 +3,7 @@
 .SYNOPSIS
   Run Lipi OS Live ISO build via WSL (root) or Docker.
 
-  Always builds on a Linux filesystem (/var/tmp/...), then COPIES the .iso
-  back into the Windows project folder: <RepoRoot>\dist\
+  Builds on Linux FS (/var/tmp/...), then COPIES .iso into <RepoRoot>\dist\
 #>
 [CmdletBinding()]
 param(
@@ -45,12 +44,19 @@ function Write-LiveLog {
             "$Line"
         }
         $text
-        Add-Content -LiteralPath $LogPath -Value $text -Encoding UTF8
+        try {
+            Add-Content -LiteralPath $LogPath -Value $text -Encoding UTF8 -ErrorAction SilentlyContinue
+        } catch {}
     }
 }
 
 function ConvertTo-WslPath {
     param([string]$WindowsPath)
+    # Prefer wslpath; fall back to /mnt/<drive>/...
+    $resolved = & wsl -u root --exec wslpath -a $WindowsPath 2>$null
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($resolved)) {
+        return ($resolved | Select-Object -Last 1).Trim()
+    }
     $resolved = & wsl --exec wslpath -a $WindowsPath 2>$null
     if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($resolved)) {
         return ($resolved | Select-Object -Last 1).Trim()
@@ -58,6 +64,13 @@ function ConvertTo-WslPath {
     $drive = $WindowsPath.Substring(0, 1).ToLowerInvariant()
     $rest = $WindowsPath.Substring(2).Replace('\', '/')
     return "/mnt/$drive$rest"
+}
+
+function Write-UnixFile {
+    param([string]$Path, [string]$Content)
+    $lf = $Content -replace "`r`n", "`n" -replace "`r", "`n"
+    if (-not $lf.EndsWith("`n")) { $lf += "`n" }
+    [System.IO.File]::WriteAllText($Path, $lf, [System.Text.UTF8Encoding]::new($false))
 }
 
 function Get-ExpectedIsoNames {
@@ -90,9 +103,6 @@ function Show-ProjectDistIsos {
     Get-ChildItem -LiteralPath $DistDir -Filter '*.iso' -ErrorAction SilentlyContinue | ForEach-Object {
         Write-Output ("  {0}  ({1:N0} bytes)" -f $_.FullName, $_.Length) | Write-LiveLog
     }
-    Get-ChildItem -LiteralPath $DistDir -Filter '*.iso.sha256' -ErrorAction SilentlyContinue | ForEach-Object {
-        Write-Output ("  {0}" -f $_.Name) | Write-LiveLog
-    }
 }
 
 Set-Content -LiteralPath $LogPath -Value ("Lipi OS ISO build log  {0:u}  backend={1} target={2}" -f (Get-Date), $Backend, $Target) -Encoding UTF8
@@ -100,90 +110,77 @@ Write-Output "Project folder: $RepoRoot" | Write-LiveLog
 Write-Output "ISO output:     $DistDir" | Write-LiveLog
 
 $expected = Get-ExpectedIsoNames -BuildTarget $Target
+$innerSrc = Join-Path $RepoRoot 'iso\wsl-build-inner.sh'
+$dockerInnerSrc = Join-Path $RepoRoot 'iso\docker-build-inner.sh'
 
 if ($Backend -eq 'wsl') {
+    if (-not (Test-Path -LiteralPath $innerSrc)) {
+        Write-Output "[X] Missing iso\wsl-build-inner.sh" | Write-LiveLog
+        exit 1
+    }
+
+    # Preflight: can we run as root?
+    $probe = & wsl -u root --exec /bin/bash -c 'echo LIPI_WSL_ROOT_OK; id -u' 2>&1
+    $probeCode = $LASTEXITCODE
+    $probe | Write-LiveLog
+    if ($probeCode -ne 0) {
+        Write-Output "[X] wsl -u root --exec failed (exit $probeCode). Is your default distro Ubuntu and root enabled?" | Write-LiveLog
+        exit $probeCode
+    }
+
     if ([string]::IsNullOrWhiteSpace($WslRoot)) {
         $WslRoot = ConvertTo-WslPath -WindowsPath $RepoRoot
     }
     $WslLog = ConvertTo-WslPath -WindowsPath $LogPath
     $safeRoot = '/var/tmp/lipi-os-build'
+    $innerWsl = ConvertTo-WslPath -WindowsPath $innerSrc
 
     Write-Output "WSL source path: $WslRoot" | Write-LiveLog
-    Write-Output "WSL build path:  $safeRoot (temp; ISO will be copied to project dist\)" | Write-LiveLog
+    Write-Output "WSL build path:  $safeRoot" | Write-LiveLog
+    Write-Output "Inner script:    $innerWsl" | Write-LiveLog
 
-    # $1=src $2=dst $3=target $4=windows log (wsl path)
-    $syncAndBuild = @'
-set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive
-SRC="$1"
-DST="$2"
-TARGET="$3"
-WINLOG="$4"
-mkdir -p "$SRC/dist"
-touch "$WINLOG" 2>/dev/null || true
-log() { echo "$1" | tee -a "$WINLOG"; }
+    # Install inner script onto Linux FS (avoids DrvFs + CRLF + paren path issues while executing)
+    $stageCmd = 'tr -d "\r" < "$1" > /var/tmp/lipi-wsl-build-inner.sh && chmod +x /var/tmp/lipi-wsl-build-inner.sh && echo STAGED_OK'
+    Write-Output "==> Staging inner build script into WSL /var/tmp ..." | Write-LiveLog
+    $stageOut = & wsl -u root --exec /bin/bash -c $stageCmd -- $innerWsl 2>&1
+    $stageCode = $LASTEXITCODE
+    $stageOut | Write-LiveLog
+    if ($stageCode -ne 0) {
+        Write-Output "[X] Failed to stage inner script (exit $stageCode)" | Write-LiveLog
+        exit $stageCode
+    }
 
-log "==> Sync $SRC -> $DST"
-rm -rf "$DST"
-mkdir -p "$DST"
-if command -v rsync >/dev/null 2>&1; then
-  rsync -a --delete \
-    --exclude '.git/' \
-    --exclude 'iso/.work/' \
-    --exclude 'dist/*.iso' \
-    --exclude 'dist/*.iso.sha256' \
-    "$SRC"/ "$DST"/
-else
-  tar -C "$SRC" --exclude='.git' --exclude='iso/.work' --exclude='dist' -cf - . | tar -C "$DST" -xf -
-  mkdir -p "$DST/dist"
-fi
-
-cd "$DST"
-chmod +x iso/auto-build.sh iso/build.sh iso/*.sh 2>/dev/null || true
-# strip CRLF if Windows checkout contaminated scripts
-find iso -name '*.sh' -print0 2>/dev/null | xargs -0 -r sed -i 's/\r$//' || true
-
-log "==> Building inside WSL ($TARGET) — ISO will be copied to Windows project dist\\"
-./iso/auto-build.sh "$TARGET" 2>&1 | tee -a "$WINLOG"
-
-log "==> Copying ISO artifacts to Windows project: $SRC/dist"
-mkdir -p "$SRC/dist"
-shopt -s nullglob
-ISOS=("$DST"/dist/*.iso)
-if ((${#ISOS[@]} == 0)); then
-  log "[X] No ISO produced under $DST/dist"
-  ls -la "$DST/dist" 2>&1 | tee -a "$WINLOG" || true
-  exit 1
-fi
-cp -f "$DST"/dist/*.iso "$SRC/dist/"
-cp -f "$DST"/dist/*.iso.sha256 "$SRC/dist/" 2>/dev/null || true
-# force sync to DrvFs
-sync || true
-log "==> Files in Windows dist:"
-ls -lh "$SRC/dist" | tee -a "$WINLOG"
-'@
-
-    # Stream live: do not capture; bash tees into the Windows log path.
+    Write-Output "==> Starting WSL build (live output below) ..." | Write-LiveLog
+    # Run staged script with real argv (paths may contain parentheses).
     $argv = @(
-        '-u', 'root', '--exec', 'bash', '-c', $syncAndBuild,
-        'lipi-build', $WslRoot, $safeRoot, $Target, $WslLog
+        '-u', 'root', '--exec', '/bin/bash',
+        '/var/tmp/lipi-wsl-build-inner.sh',
+        $WslRoot, $safeRoot, $Target, $WslLog
     )
+    # Live console + also keep exit code
     & wsl @argv
     $code = $LASTEXITCODE
+    Write-Output ("==> WSL inner exit code: {0}" -f $code) | Write-LiveLog
 
     Show-ProjectDistIsos
     $missing = Test-ProjectDistIsos -Names $expected
     if ($code -ne 0 -or ($expected.Count -gt 0 -and $missing.Count -gt 0)) {
         if ($missing.Count -gt 0) {
             Write-Output ("[X] Missing in project dist\: {0}" -f ($missing -join ', ')) | Write-LiveLog
+            Write-Output '    Open dist\build-windows.log for the full WSL output.' | Write-LiveLog
         }
         exit $(if ($code -ne 0) { $code } else { 1 })
     }
-    Write-Output '[OK] ISO is in the project dist\ folder (not only inside WSL).' | Write-LiveLog
+    Write-Output '[OK] ISO is in the project dist\ folder (Windows).' | Write-LiveLog
     exit 0
 }
 
 if ($Backend -eq 'docker') {
+    if (-not (Test-Path -LiteralPath $dockerInnerSrc)) {
+        Write-Output "[X] Missing iso\docker-build-inner.sh" | Write-LiveLog
+        exit 1
+    }
+
     Write-Output 'Pulling ubuntu:24.04 ...' | Write-LiveLog
     & docker pull ubuntu:24.04 2>&1 | Write-LiveLog
     if ($LASTEXITCODE -ne 0) {
@@ -191,37 +188,10 @@ if ($Backend -eq 'docker') {
         exit $LASTEXITCODE
     }
 
-    # Same pattern as WSL: copy off the Windows mount into container /var/tmp, build, copy ISO back.
-    $bash = @'
-set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive
-TARGET="$1"
-SRC=/lipi-src
-DST=/var/tmp/lipi-os-build
-echo "==> Sync $SRC -> $DST (Linux FS inside container)"
-rm -rf "$DST"
-mkdir -p "$DST" /lipi-out
-if command -v rsync >/dev/null 2>&1; then
-  rsync -a --delete --exclude '.git/' --exclude 'iso/.work/' --exclude 'dist/*.iso' --exclude 'dist/*.iso.sha256' "$SRC"/ "$DST"/
-else
-  apt-get update -qq && apt-get install -y -qq rsync >/dev/null
-  rsync -a --delete --exclude '.git/' --exclude 'iso/.work/' --exclude 'dist/*.iso' "$SRC"/ "$DST"/
-fi
-cd "$DST"
-chmod +x iso/auto-build.sh iso/build.sh
-find iso -name '*.sh' -print0 | xargs -0 -r sed -i 's/\r$//' || true
-./iso/auto-build.sh "$TARGET"
-echo "==> Copy ISO to Windows project mount /lipi-out"
-shopt -s nullglob
-ISOS=("$DST"/dist/*.iso)
-if ((${#ISOS[@]} == 0)); then
-  echo "[X] No ISO produced"
-  exit 1
-fi
-cp -f "$DST"/dist/*.iso /lipi-out/
-cp -f "$DST"/dist/*.iso.sha256 /lipi-out/ 2>/dev/null || true
-ls -lh /lipi-out
-'@
+    # Normalize inner script to LF in dist so container can run it reliably
+    $dockerRunSh = Join-Path $DistDir '_docker-build-inner.sh'
+    $raw = [System.IO.File]::ReadAllText($dockerInnerSrc)
+    Write-UnixFile -Path $dockerRunSh -Content $raw
 
     $dockerArgs = @(
         'run', '--rm', '--privileged',
@@ -230,13 +200,14 @@ ls -lh /lipi-out
         '-v', "${RepoRoot}:/lipi-src",
         '-v', "${DistDir}:/lipi-out",
         'ubuntu:24.04',
-        'bash', '-c', $bash,
-        'lipi-build',
+        'bash', '/lipi-out/_docker-build-inner.sh',
         $Target
     )
 
     & docker @dockerArgs 2>&1 | Write-LiveLog
     $code = $LASTEXITCODE
+    Remove-Item -LiteralPath $dockerRunSh -Force -ErrorAction SilentlyContinue
+
     Show-ProjectDistIsos
     $missing = Test-ProjectDistIsos -Names $expected
     if ($code -ne 0 -or ($expected.Count -gt 0 -and $missing.Count -gt 0)) {

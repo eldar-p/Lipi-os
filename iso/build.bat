@@ -44,6 +44,10 @@ if not exist "%PS1%" (
   echo [X] Missing iso\build-windows.ps1
   goto :fail
 )
+if not exist "%REPO_ROOT%\iso\wsl-build-inner.sh" (
+  echo [X] Missing iso\wsl-build-inner.sh — download the full branch/zip.
+  goto :fail
+)
 
 if "%TARGET%"=="" goto :autostart
 goto :normalize
