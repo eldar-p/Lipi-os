@@ -1,8 +1,4 @@
-Lipi OS Live \n \l
+Lipi OS \n \l
 
-Root is auto-logged in on tty1. To skip Lipi OS shell:
-  LIPI_SKIP_AUTOSTART=1 bash
-
-Write this ISO to USB (Linux):
-  sudo dd if=lipi-os-live.iso of=/dev/sdX bs=4M status=progress oflag=sync
-
+Linux-based · own userspace · Live session
+Skip Lipi shell:  LIPI_SKIP_AUTOSTART=1 bash

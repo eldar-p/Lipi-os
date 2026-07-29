@@ -11,7 +11,7 @@
       популярные Linux-дистрибутивы (Ubuntu, Debian, Kali, Arch)
       Android (10-15)
       macOS
-  - Live ISO для реальных ПК (BIOS/UEFI USB) — `sudo ./iso/build.sh`
+  - Live ISO: свой дистрибутив Lipi OS на ядре Linux (`sudo ./iso/build.sh`)
 
 Библиотеки для Lipi OS v9:
   psutil>=5.9.0

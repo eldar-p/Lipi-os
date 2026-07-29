@@ -1,0 +1,13 @@
+PRETTY_NAME="Lipi OS 8+"
+NAME="Lipi OS"
+VERSION_ID="8+"
+VERSION="8+ (Live)"
+VERSION_CODENAME=live
+ID=lipi
+ID_LIKE="debian ubuntu"
+HOME_URL="https://github.com/eldar-p/Lipi-os"
+SUPPORT_URL="https://github.com/eldar-p/Lipi-os/issues"
+BUG_REPORT_URL="https://github.com/eldar-p/Lipi-os/issues"
+PRIVACY_POLICY_URL="https://github.com/eldar-p/Lipi-os"
+LOGO=lipi-os
+ANSI_COLOR="1;36"

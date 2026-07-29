@@ -47,13 +47,13 @@ lipi-os/
 
 ## Загрузка на реальном ПК (Live ISO)
 
-Чтобы запускать Lipi OS с флешки на настоящем компьютере:
+Lipi OS собирается как **свой дистрибутив на ядре Linux** (не приложение внутри чужой ОС):
 
 ```bash
 sudo ./iso/build.sh
 ```
 
-Образ появится в `dist/lipi-os-live.iso`. Подробности записи на USB и загрузки — в [`iso/README.md`](iso/README.md).
+Образ: `dist/lipi-os-live.iso`. Запись на USB и загрузка — в [`iso/README.md`](iso/README.md).
 
 ## Формат приложения
 

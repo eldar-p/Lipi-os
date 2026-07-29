@@ -57,7 +57,7 @@ install_host_deps() {
 }
 
 bootstrap_rootfs() {
-  log "Bootstrapping Ubuntu ${CODENAME} (${ARCH})"
+  log "Bootstrapping Linux userspace base (${CODENAME}/${ARCH}) for Lipi OS"
   mkdir -p "${CACHE_DIR}" "${CHROOT_DIR}"
   if [[ ! -d "${CHROOT_DIR}/bin" ]]; then
     debootstrap --arch="${ARCH}" --variant=minbase \
@@ -69,7 +69,7 @@ bootstrap_rootfs() {
 }
 
 configure_rootfs() {
-  log "Configuring Live rootfs"
+  log "Installing Linux kernel + Live boot into Lipi OS rootfs"
   mkdir -p "${CHROOT_DIR}/etc/apt/apt.conf.d"
   cat >"${CHROOT_DIR}/etc/apt/apt.conf.d/99norecommends" <<'EOF'
 APT::Install-Recommends "false";
@@ -141,8 +141,41 @@ CHROOT
   cleanup_mounts
 }
 
+apply_lipi_identity() {
+  log "Applying Lipi OS identity (own distro on Linux kernel)"
+
+  # Replace vendor os-release (often a symlink into /usr/lib)
+  rm -f "${CHROOT_DIR}/etc/os-release" "${CHROOT_DIR}/usr/lib/os-release" \
+    "${CHROOT_DIR}/etc/lsb-release"
+  cp -f "${OVERLAY_DIR}/etc/os-release" "${CHROOT_DIR}/usr/lib/os-release"
+  cp -f "${OVERLAY_DIR}/etc/os-release" "${CHROOT_DIR}/etc/os-release"
+  cp -f "${OVERLAY_DIR}/etc/lsb-release" "${CHROOT_DIR}/etc/lsb-release"
+  cp -f "${OVERLAY_DIR}/etc/lipi-release" "${CHROOT_DIR}/etc/lipi-release"
+
+  # Hide Ubuntu/Debian MOTD noise
+  mkdir -p "${CHROOT_DIR}/etc/update-motd.d"
+  if compgen -G "${CHROOT_DIR}/etc/update-motd.d/*" >/dev/null; then
+    chmod a-x "${CHROOT_DIR}/etc/update-motd.d/"* 2>/dev/null || true
+  fi
+  cp -f "${OVERLAY_DIR}/etc/update-motd.d/00-lipi-header" \
+    "${CHROOT_DIR}/etc/update-motd.d/00-lipi-header"
+  chmod 755 "${CHROOT_DIR}/etc/update-motd.d/00-lipi-header"
+  rm -f "${CHROOT_DIR}/etc/legal"
+  : >"${CHROOT_DIR}/etc/motd.dynamic" 2>/dev/null || true
+
+  # Machine identity
+  printf 'lipi-os\n' >"${CHROOT_DIR}/etc/hostname"
+  cat >"${CHROOT_DIR}/etc/hosts" <<'EOF'
+127.0.0.1	localhost
+127.0.1.1	lipi-os
+::1		localhost ip6-localhost ip6-loopback
+ff02::1		ip6-allnodes
+ff02::2		ip6-allrouters
+EOF
+}
+
 install_lipi() {
-  log "Installing Lipi OS into /opt/lipi-os"
+  log "Installing Lipi OS shell into /opt/lipi-os"
   rm -rf "${CHROOT_DIR}/opt/lipi-os"
   mkdir -p "${CHROOT_DIR}/opt/lipi-os"
   rsync -a --delete \
@@ -152,17 +185,27 @@ install_lipi() {
     --exclude 'venv/' \
     "${ROOT_DIR}/code/" "${CHROOT_DIR}/opt/lipi-os/"
 
-  # Overlay: autologin, launcher, issue, hostname
+  # Overlay: autologin, launcher, issue, hostname, branding
   rsync -a "${OVERLAY_DIR}/" "${CHROOT_DIR}/"
   chmod 755 "${CHROOT_DIR}/usr/local/bin/lipi-os"
+  chmod 755 "${CHROOT_DIR}/etc/update-motd.d/00-lipi-header" 2>/dev/null || true
+
+  apply_lipi_identity
 
   # Writable home-like settings path on Live (tmpfs overlay handles writes)
   mkdir -p "${CHROOT_DIR}/root"
   cat >"${CHROOT_DIR}/root/.bashrc" <<'EOF'
-# Lipi OS Live
+# Lipi OS
 alias lipi='lipi-os'
 export PATH="/usr/local/bin:$PATH"
+export LIPI_OS=1
+# Quiet Ubuntu remnants if any still print
+unset debian_chroot 2>/dev/null || true
 EOF
+
+  # Make /usr/bin/lipi available as short name
+  ln -sfn /usr/local/bin/lipi-os "${CHROOT_DIR}/usr/bin/lipi" 2>/dev/null || \
+    ln -sfn /usr/local/bin/lipi-os "${CHROOT_DIR}/bin/lipi"
 }
 
 make_squashfs() {

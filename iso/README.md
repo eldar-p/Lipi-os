@@ -1,12 +1,33 @@
 # Lipi OS Live ISO
 
-Сборка загрузочного ISO, чтобы запускать Lipi OS на реальном ПК (BIOS и UEFI).
+Своя ОС на ядре Linux: загрузочный образ для реального ПК (BIOS / UEFI).
 
-## Что внутри
+## Архитектура
 
-- Ubuntu Live (`noble`) + Python 3 + Lipi OS в `/opt/lipi-os`
-- Автологин `root` на `tty1` и автозапуск `lipi-os --cli`
-- Hybrid ISO: можно записать на USB и грузить с флешки
+```
+┌─────────────────────────────────────┐
+│            Lipi OS (своя)           │
+│  shell · apps · settings · store    │
+├─────────────────────────────────────┤
+│     userspace (systemd, python…)    │
+├─────────────────────────────────────┤
+│         Linux kernel                │
+└─────────────────────────────────────┘
+```
+
+Это не «программа внутри Ubuntu», а **свой дистрибутив Lipi OS**:
+- своё имя (`/etc/os-release`, hostname `lipi-os`, GRUB «Lipi OS»)
+- своя оболочка как основной интерфейс после загрузки
+- под капотом — ядро Linux (иначе на железе не загрузиться без написания своего ядра)
+
+Пакеты ядра и базовый userspace берутся из Debian/Ubuntu-репозиториев только как фундамент; идентичность системы — Lipi.
+
+## Что внутри образа
+
+- Linux kernel + Live initramfs
+- Python 3 и Lipi OS в `/opt/lipi-os`
+- Автологин и автозапуск `lipi-os --cli`
+- Hybrid ISO (USB / DVD, BIOS + UEFI)
 
 ## Сборка
 
@@ -21,12 +42,6 @@ sudo ./iso/build.sh
 ```
 dist/lipi-os-live.iso
 dist/lipi-os-live.iso.sha256
-```
-
-Повторная сборка после правок кода (chroot уже есть):
-
-```bash
-sudo ./iso/build.sh
 ```
 
 Полная пересборка rootfs:
@@ -44,45 +59,24 @@ Linux:
 sudo dd if=dist/lipi-os-live.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
-Замените `/dev/sdX` на устройство флешки (не раздел вроде `/dev/sdX1`). Проверить можно через `lsblk`.
+Замените `/dev/sdX` на устройство флешки (`lsblk`). На Windows — [Rufus](https://rufus.ie/) в режиме DD.
 
-Windows: [Rufus](https://rufus.ie/) → режим DD / Image mode.
+## Загрузка
 
-macOS:
-
-```bash
-diskutil list
-diskutil unmountDisk /dev/diskN
-sudo dd if=dist/lipi-os-live.iso of=/dev/rdiskN bs=4m
-```
-
-## Загрузка на реальном ПК
-
-1. Вставьте USB
-2. В BIOS/UEFI включите загрузку с USB (при Secure Boot — отключите Secure Boot или используйте машину без него)
-3. Выберите пункт **Lipi OS Live (CLI)**
-4. После загрузки откроется оболочка Lipi OS
-
-Выход в обычный Linux shell:
-
-```text
-exit
-```
-
-Снова запустить Lipi OS:
+1. USB → Boot Menu → **Lipi OS (Live)**
+2. При Secure Boot — отключите его в UEFI
+3. Откроется оболочка Lipi OS
 
 ```bash
-lipi-os --cli
-```
-
-Пропустить автозапуск при логине:
-
-```bash
-LIPI_SKIP_AUTOSTART=1 bash
+exit                 # системный shell Linux
+lipi-os --cli        # снова Lipi
+LIPI_SKIP_AUTOSTART=1 bash   # войти без автозапуска
+cat /etc/os-release  # PRETTY_NAME="Lipi OS 8+"
+uname -s             # Linux
 ```
 
 ## Важно
 
-- Это Live-система: изменения в файлах не сохраняются после перезагрузки (если не монтировать постоянный диск вручную).
-- GUI (`--gui`) на «голом» Live без X-сервера не стартует — по умолчанию CLI. Для GUI нужна отдельная сборка с Xorg.
-- ISO занимает сотни мегабайт из‑за ядра Linux и initramfs — Python-оболочке нужен реальный Linux, чтобы грузиться на железе.
+- Live: изменения не сохраняются после перезагрузки.
+- GUI (`--gui`) без Xorg в этой сборке не стартует — по умолчанию CLI.
+- Своё ядро с нуля (не Linux) — отдельный огромный проект; здесь сознательно выбран Linux как ядро, а «своя» часть — всё, что выше него.
