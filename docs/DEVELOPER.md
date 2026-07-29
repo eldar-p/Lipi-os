@@ -432,6 +432,8 @@ sudo ./iso/build.sh server    # CLI+SSH, без GUI → dist/lipi-os-server.iso
 sudo ./iso/build.sh all
 ```
 
+Windows: `build-iso.bat` / `iso\build.bat` (через WSL или Docker).
+
 Подробности: `iso/README.md`.
 
 ---

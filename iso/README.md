@@ -12,6 +12,25 @@ sudo ./iso/build.sh all      # оба сразу
 sudo ./iso/build.sh clean    # снести iso/.work
 ```
 
+## Windows (`.bat`)
+
+Нужен **WSL2 (Ubuntu)** или **Docker Desktop** — ISO Linux нативно в cmd не собирается.
+
+```bat
+build-iso.bat
+build-iso.bat desktop
+build-iso.bat server
+build-iso.bat all
+```
+
+или из папки `iso`:
+
+```bat
+iso\build.bat desktop
+```
+
+Скрипт сам найдёт WSL (предпочтительно) или Docker и вызовет `iso/build.sh`.
+
 ## Архитектура
 
 ```

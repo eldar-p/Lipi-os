@@ -74,6 +74,14 @@ sudo ./iso/build.sh server    # урезанная CLI+SSH → dist/lipi-os-serv
 sudo ./iso/build.sh all       # обе
 ```
 
+На **Windows** (нужен WSL2 или Docker Desktop):
+
+```bat
+build-iso.bat
+build-iso.bat desktop
+build-iso.bat server
+```
+
 Подробности: [`iso/README.md`](iso/README.md).
 
 ## Формат приложения
