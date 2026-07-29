@@ -133,27 +133,29 @@ if ($Backend -eq 'wsl') {
     }
     $WslLog = ConvertTo-WslPath -WindowsPath $LogPath
     $safeRoot = '/var/tmp/lipi-os-build'
-    $innerWsl = ConvertTo-WslPath -WindowsPath $innerSrc
 
     Write-Output "WSL source path: $WslRoot" | Write-LiveLog
     Write-Output "WSL build path:  $safeRoot" | Write-LiveLog
-    Write-Output "Inner script:    $innerWsl" | Write-LiveLog
+    Write-Output "Inner script:    $innerSrc" | Write-LiveLog
 
-    # Install inner script onto Linux FS (strip CRLF only — NOT tr -d "\r", which deletes letter r!)
-    $stageCmd = 'sed "s/\r$//" < "$1" > /var/tmp/lipi-wsl-build-inner.sh && chmod +x /var/tmp/lipi-wsl-build-inner.sh && head -n 6 /var/tmp/lipi-wsl-build-inner.sh && echo STAGED_OK'
+    # Stage via base64 so we never corrupt the script (old bug: tr -d "\r" deleted letter 'r')
     Write-Output "==> Staging inner build script into WSL /var/tmp ..." | Write-LiveLog
-    $stageOut = & wsl -u root --exec /bin/bash -c $stageCmd -- $innerWsl 2>&1
+    $rawText = [System.IO.File]::ReadAllText($innerSrc) -replace "`r`n", "`n" -replace "`r", "`n"
+    if ($rawText -notmatch '(?m)^export ') {
+        Write-Output "[X] iso\wsl-build-inner.sh has no export lines — corrupt download?" | Write-LiveLog
+        exit 1
+    }
+    $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($rawText))
+    $stageCmd = 'echo "$1" | base64 -d > /var/tmp/lipi-wsl-build-inner.sh && chmod +x /var/tmp/lipi-wsl-build-inner.sh && grep -n "^export " /var/tmp/lipi-wsl-build-inner.sh && head -n 8 /var/tmp/lipi-wsl-build-inner.sh && echo STAGED_OK'
+    $stageOut = & wsl -u root --exec /bin/bash -c $stageCmd -- $b64 2>&1
     $stageCode = $LASTEXITCODE
     $stageOut | Write-LiveLog
-    if ($stageCode -ne 0) {
+    if ($stageCode -ne 0 -or ("$stageOut" -notmatch 'STAGED_OK')) {
         Write-Output "[X] Failed to stage inner script (exit $stageCode)" | Write-LiveLog
-        exit $stageCode
+        exit $(if ($stageCode -ne 0) { $stageCode } else { 1 })
     }
-    # Sanity: staged file must contain a real 'export' (guards against the old tr bug)
-    $check = & wsl -u root --exec /bin/bash -c 'grep -n "^export " /var/tmp/lipi-wsl-build-inner.sh | head -n 2' 2>&1
-    $check | Write-LiveLog
-    if ("$check" -notmatch 'export ') {
-        Write-Output "[X] Staged script looks corrupted (no export lines). Aborting." | Write-LiveLog
+    if ("$stageOut" -notmatch 'export ') {
+        Write-Output "[X] Staged script corrupted (no export). Aborting." | Write-LiveLog
         exit 1
     }
 
