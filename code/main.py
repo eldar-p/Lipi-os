@@ -155,7 +155,14 @@ Usage:
 def run_app_from_gui(app_path: Path) -> None:
     main_py = app_path / "main.py"
     if main_py.exists():
-        subprocess.Popen([sys.executable, str(main_py)], cwd=str(app_path))
+        env = os.environ.copy()
+        prev = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(BASE_DIR) + (os.pathsep + prev if prev else "")
+        subprocess.Popen(
+            [sys.executable, str(main_py)],
+            cwd=str(app_path),
+            env=env,
+        )
 
 
 def launch_gui() -> bool:
@@ -172,6 +179,9 @@ def launch_gui() -> bool:
         return False
 
     lang = get_language_strings()
+    from i18n import load_config_language
+
+    lang_code = load_config_language()
     desktop = LipiWindow("Lipi OS Desktop", 1000, 700)
 
     menubar = Menu(desktop.root)
@@ -179,7 +189,7 @@ def launch_gui() -> bool:
 
     if APPS_DIR.exists():
         for app_folder in sorted(APPS_DIR.iterdir()):
-            if not app_folder.is_dir():
+            if not app_folder.is_dir() or not (app_folder / "main.py").exists():
                 continue
             desc_file = app_folder / "description.json"
             app_name = app_folder.name
@@ -187,7 +197,10 @@ def launch_gui() -> bool:
                 try:
                     with open(desc_file, "r", encoding="utf-8") as f:
                         meta = json.load(f)
-                    app_name = meta.get("name") or meta.get("name_en") or app_folder.name
+                    if lang_code.startswith("ru") and meta.get("name_ru"):
+                        app_name = meta["name_ru"]
+                    else:
+                        app_name = meta.get("name") or meta.get("name_en") or app_folder.name
                 except (OSError, json.JSONDecodeError, TypeError, ValueError):
                     pass
             apps_menu.add_command(

@@ -1,0 +1,10 @@
+{
+  "name": "Console",
+  "name_ru": "Консоль",
+  "name_en": "Console",
+  "version": "1.0.0",
+  "author": "Lipi OS",
+  "description": "Terminal console for Lipi shell and system commands",
+  "category": "system",
+  "entry": "main.py"
+}
