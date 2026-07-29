@@ -1,0 +1,10 @@
+{
+  "name": "Browser",
+  "name_ru": "Браузер",
+  "name_en": "Browser",
+  "version": "1.0.0",
+  "author": "Lipi OS",
+  "description": "Simple web browser (fetch pages, view text/HTML, open system browser)",
+  "category": "internet",
+  "entry": "main.py"
+}

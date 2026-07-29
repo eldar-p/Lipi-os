@@ -1,0 +1,10 @@
+{
+  "name": "IDE",
+  "name_ru": "IDE",
+  "name_en": "IDE",
+  "version": "1.0.0",
+  "author": "Lipi OS",
+  "description": "Lightweight IDE: files, editor, run Python/JS and Compiler Hub langs",
+  "category": "development",
+  "entry": "main.py"
+}

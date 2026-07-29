@@ -64,5 +64,11 @@
   "empty_code": "Пустой код",
   "invalid_choice": "Неверный выбор",
   "available_commands": "Доступные команды: {}",
-  "use_exit": "Для выхода используйте 'exit'."
+  "use_exit": "Для выхода используйте 'exit'.",
+  "open_usage": "Использование: open <app_id> [--cli] [args...]",
+  "no_apps": "Нет установленных приложений.",
+  "text_editor": "Текстовый редактор",
+  "console": "Консоль",
+  "ide": "IDE",
+  "browser": "Браузер"
 }

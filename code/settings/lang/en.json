@@ -64,5 +64,11 @@
   "empty_code": "Empty code",
   "invalid_choice": "Invalid choice",
   "available_commands": "Available commands: {}",
-  "use_exit": "Use 'exit' to quit."
+  "use_exit": "Use 'exit' to quit.",
+  "open_usage": "Usage: open <app_id> [--cli] [args...]",
+  "no_apps": "No applications installed.",
+  "text_editor": "Text Editor",
+  "console": "Console",
+  "ide": "IDE",
+  "browser": "Browser"
 }

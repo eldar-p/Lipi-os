@@ -1,0 +1,10 @@
+{
+  "name": "Text Editor",
+  "name_ru": "Текстовый редактор",
+  "name_en": "Text Editor",
+  "version": "1.0.0",
+  "author": "Lipi OS",
+  "description": "Edit text files (open / save / save as)",
+  "category": "productivity",
+  "entry": "main.py"
+}

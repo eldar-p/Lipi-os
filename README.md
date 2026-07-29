@@ -1,6 +1,6 @@
 # Lipi OS
 
-Операционная система-оболочка на Python (CLI + опциональный GUI на Tkinter).
+Операционная система-оболочка на Python (CLI + GUI на Tkinter). Можно собрать Live ISO на ядре Linux для реальных ПК.
 
 ## Запуск
 
@@ -14,13 +14,34 @@ python main.py            # GUI если доступен, иначе CLI
 
 ## Что умеет сейчас (v8+)
 
-- Shell: `ls`, `cd`, `pwd`, `mkdir`, `cat`, `echo`, `touch`, `cp`, `mv`, `rm`, `date`, `run`, `apps`, `help`, `exit`
+- Shell: `ls`, `cd`, `pwd`, `mkdir`, `cat`, `echo`, `touch`, `cp`, `mv`, `rm`, `date`, `run`, `apps`, `open`, `help`, `exit`
 - Системные команды: `settings`, `tasks`, `store`, `compile`
-- Встроенные приложения: Calculator, File Manager
+- Приложения: Calculator, File Manager, Settings, Text Editor, Console, IDE, Browser
+- SDK для приложений (`code/sdk`)
 - Настройки языка (ru/en) и темы
-- Диспетчер задач (psutil)
-- Магазин приложений (.lipi / zip)
-- Compiler Hub (Python, JS, C/C++, Rust и др.)
+- Диспетчер задач, магазин (.lipi / zip), Compiler Hub
+
+## Документация для разработчиков
+
+Подробно (API, создание приложений, команды, настройки, IDE/браузер и т.д.):
+
+→ **[docs/DEVELOPER.md](docs/DEVELOPER.md)**
+
+Кратко:
+
+```bash
+# список приложений
+apps
+apps -v
+
+# запуск
+open calculator
+open text_editor
+open console
+open ide
+open browser https://example.com
+open settings --cli
+```
 
 ## Структура
 
@@ -28,20 +49,18 @@ python main.py            # GUI если доступен, иначе CLI
 lipi-os/
 ├── code/
 │   ├── main.py
-│   ├── paths.py
-│   ├── i18n.py
-│   ├── requirements.txt
+│   ├── sdk/                 # App SDK
 │   ├── core/
 │   ├── commands/
 │   ├── apps/
 │   └── settings/
+├── docs/DEVELOPER.md
 ├── iso/                   # Live ISO builder for real PCs
 │   ├── build.sh
 │   ├── grub.cfg
 │   └── overlay/
 ├── dist/                  # output: lipi-os-live.iso (after build)
 ├── README.md
-├── info_and_apdate.txt
 └── LICENSE
 ```
 
@@ -63,13 +82,35 @@ apps/my_app/
   description.json
 ```
 
-Пример `description.json`:
-
 ```json
 {
   "name": "My App",
+  "name_ru": "Моё приложение",
   "version": "1.0.0",
   "author": "You",
-  "description": "Short description"
+  "description": "Short description",
+  "category": "productivity"
 }
+```
+
+Шаблон `main.py`:
+
+```python
+import sys
+from pathlib import Path
+
+_CODE = Path(__file__).resolve().parents[2]
+if str(_CODE) not in sys.path:
+    sys.path.insert(0, str(_CODE))
+
+from sdk import run_app_main
+
+def run_gui():
+    ...
+
+def run_cli():
+    ...
+
+if __name__ == "__main__":
+    run_app_main(run_gui, run_cli)
 ```
