@@ -1,0 +1,14 @@
+PRETTY_NAME="Lipi OS 8+ Server"
+NAME="Lipi OS"
+VERSION_ID="8+"
+VERSION="8+ (Server)"
+VERSION_CODENAME=server
+ID=lipi
+ID_LIKE="debian ubuntu"
+HOME_URL="https://github.com/eldar-p/Lipi-os"
+SUPPORT_URL="https://github.com/eldar-p/Lipi-os/issues"
+BUG_REPORT_URL="https://github.com/eldar-p/Lipi-os/issues"
+VARIANT="Server"
+VARIANT_ID=server
+LOGO=lipi-os
+ANSI_COLOR="1;32"

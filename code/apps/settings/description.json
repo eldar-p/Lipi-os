@@ -1,0 +1,10 @@
+{
+  "name": "Settings",
+  "name_ru": "Настройки",
+  "name_en": "Settings",
+  "version": "1.0.0",
+  "author": "Lipi OS",
+  "description": "Language, theme, app directory and compiler paths",
+  "category": "system",
+  "entry": "main.py"
+}

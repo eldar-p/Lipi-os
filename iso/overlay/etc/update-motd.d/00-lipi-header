@@ -1,0 +1,8 @@
+#!/bin/sh
+# Lipi OS MOTD — replaces Ubuntu/Debian fragments.
+cat <<'EOF'
+
+ Lipi OS 8+  —  own OS on the Linux kernel
+ Shell: Lipi   |   uname -s => Linux
+
+EOF

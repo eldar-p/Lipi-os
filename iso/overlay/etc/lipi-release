@@ -1,0 +1,6 @@
+NAME="Lipi OS"
+VERSION="8+"
+KERNEL=linux
+BASE=debian-minbase
+SHELL=/opt/lipi-os
+BUILD_CHANNEL=live
