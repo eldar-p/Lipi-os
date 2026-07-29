@@ -2,6 +2,9 @@
 <#
 .SYNOPSIS
   Run Lipi OS Live ISO build via WSL (root) or Docker, with live console + log.
+
+  Paths may contain spaces or characters like ( ) — they are passed as argv /
+  properly quoted, never via bare env assignments that bash re-parses.
 #>
 [CmdletBinding()]
 param(
@@ -37,33 +40,38 @@ function Write-LiveLog {
     }
 }
 
+function ConvertTo-WslPath {
+    param([string]$WindowsPath)
+    $resolved = & wsl -e wslpath -a $WindowsPath 2>$null
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($resolved)) {
+        return ($resolved | Select-Object -Last 1).Trim()
+    }
+    $drive = $WindowsPath.Substring(0, 1).ToLowerInvariant()
+    $rest = $WindowsPath.Substring(2).Replace('\', '/')
+    return "/mnt/$drive$rest"
+}
+
 # Truncate / create log
 Set-Content -LiteralPath $LogPath -Value ("Lipi OS ISO build log  {0:u}  backend={1} target={2}" -f (Get-Date), $Backend, $Target) -Encoding UTF8
 
 if ($Backend -eq 'wsl') {
     if ([string]::IsNullOrWhiteSpace($WslRoot)) {
-        $resolved = & wsl -e wslpath -a $RepoRoot 2>$null
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($resolved)) {
-            $WslRoot = ($resolved | Select-Object -Last 1).Trim()
-        }
-        else {
-            $drive = $RepoRoot.Substring(0, 1).ToLowerInvariant()
-            $rest = $RepoRoot.Substring(2).Replace('\', '/')
-            $WslRoot = "/mnt/$drive$rest"
-        }
+        $WslRoot = ConvertTo-WslPath -WindowsPath $RepoRoot
     }
 
     Write-Output "WSL root path: $WslRoot" | Write-LiveLog
 
-    # Pass path/target as env vars so bash quoting stays simple (no nested quotes from cmd).
-    $bash = 'set -e; export DEBIAN_FRONTEND=noninteractive; cd "$LIPI_WSL_ROOT"; chmod +x iso/auto-build.sh iso/build.sh; exec ./iso/auto-build.sh "$LIPI_TARGET"'
+    # IMPORTANT: pass repo path / target as bash positional args ($1, $2).
+    # Do NOT use: env LIPI_WSL_ROOT=/path/with(parens) — bash treats ( as syntax.
+    # bash -lc '...' name arg1 arg2  => $0=name, $1=arg1, $2=arg2
+    $bash = 'set -euo pipefail; export DEBIAN_FRONTEND=noninteractive; cd "$1"; chmod +x iso/auto-build.sh iso/build.sh; exec ./iso/auto-build.sh "$2"'
 
     $wslArgs = @(
         '-u', 'root', '--',
-        'env',
-        ("LIPI_WSL_ROOT={0}" -f $WslRoot),
-        ("LIPI_TARGET={0}" -f $Target),
-        'bash', '-lc', $bash
+        'bash', '-lc', $bash,
+        'lipi-build',
+        $WslRoot,
+        $Target
     )
 
     & wsl @wslArgs 2>&1 | ForEach-Object {
@@ -85,16 +93,18 @@ if ($Backend -eq 'docker') {
         exit $LASTEXITCODE
     }
 
-    $bash = 'chmod +x iso/auto-build.sh iso/build.sh && ./iso/auto-build.sh "$LIPI_TARGET"'
+    # Target via argv ($1); volume path is handled by Docker API (parens OK).
+    $bash = 'set -euo pipefail; chmod +x iso/auto-build.sh iso/build.sh; exec ./iso/auto-build.sh "$1"'
     $dockerArgs = @(
         'run', '--rm', '--privileged',
         '-e', 'DEBIAN_FRONTEND=noninteractive',
         '-e', 'NEEDRESTART_MODE=a',
-        '-e', ("LIPI_TARGET={0}" -f $Target),
-        '-v', ("{0}:/lipi" -f $RepoRoot),
+        '-v', "${RepoRoot}:/lipi",
         '-w', '/lipi',
         'ubuntu:24.04',
-        'bash', '-lc', $bash
+        'bash', '-lc', $bash,
+        'lipi-build',
+        $Target
     )
 
     & docker @dockerArgs 2>&1 | ForEach-Object {
